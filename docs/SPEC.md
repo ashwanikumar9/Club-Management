@@ -141,6 +141,7 @@ The point is recorded on the first tap, so detail prompts never slow down or blo
 | Both off (Quick mode) | Plain `+1`; commentary: "Player 1 scored a point" / "Team A scores" |
 
 - Defaults come from the event's sport settings; scorers and organisers can toggle them mid-match
+- "Ask who" is on by default for football, kabaddi and basketball (every point is credited to a player)
 - Switching levels mid-match only affects new entries; existing entries keep their detail
 - For singles (badminton, table tennis) the "who" is implied by the side, so only "how" is asked
 
