@@ -89,6 +89,11 @@ export function Scoreboard({ match, state, compact = false }: { match: Match; st
             <div className="min-w-0 flex-1">
               <div className={`truncate font-semibold ${compact ? "text-base" : "text-lg"}`}>
                 {match.sides[side].name} {isWinner && <span className="text-accent">✓</span>}
+                {state.server === side && (
+                  <span className="ml-1.5 inline-block rounded-full bg-live/10 px-1.5 align-middle text-[10px] font-bold uppercase tracking-wide text-live" title="Serving">
+                    serve
+                  </span>
+                )}
               </div>
               {players && !compact && <div className="truncate text-xs text-muted">{players}</div>}
             </div>

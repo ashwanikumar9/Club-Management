@@ -132,6 +132,17 @@ export interface MatchOutcome {
   winner?: SideKey;
 }
 
+/**
+ * Toss before the match: who won it and what they chose, which decides the first server and which side
+ * starts on the left (the scorer's view of the court).
+ */
+export interface Toss {
+  winner?: SideKey;
+  choice?: "serve" | "receive" | "side";
+  firstServer: SideKey;
+  left: SideKey;
+}
+
 export interface DetailSettings {
   askHow: boolean;
   askWho: boolean;
@@ -162,6 +173,7 @@ export interface Match {
   tournament?: TournamentLink;
   /** Set for a match that is part of a team tie. */
   tie?: { id: string; index: number; teams: Record<SideKey, string> };
+  toss?: Toss;
   /** Set when the match is closed without being played to a finish (retirement, walkover, no result). */
   outcome?: MatchOutcome;
   status: MatchStatus;

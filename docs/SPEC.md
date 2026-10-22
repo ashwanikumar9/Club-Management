@@ -403,6 +403,16 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
 8. **Team events** — for badminton / table tennis "team" entries, every fixture is a team tie (below);
    the points table counts ties won, then matches won/lost (MD), then games
 
+### Toss, serving and change of ends
+- Before the start the scorer flips a coin in the app (or enters who won), records the winner's choice
+  (serve, receive or pick a side), who serves first and which side starts on the scorer's left
+- Serving is then tracked automatically: badminton and volleyball — the rally winner serves (badminton:
+  the game winner serves first next game; volleyball: first serve alternates each set); table tennis —
+  service alternates every 2 points, every point from deuce, and the first server alternates each game
+- Ends change after every set and once halfway through the deciding set (badminton 11 of 21, table tennis
+  5 of 11, volleyball 8 of 15); the scorer is told and the +1 buttons swap to match the court
+- Commentary announces the toss and changes of ends; the scoreboard marks the serving side
+
 ### Retirements, walkovers and no result
 - A match that isn't played to a finish is closed by the scorer (or organiser) with how it ended:
   - **Retired** — one side retired during play; the opponent is awarded the match; the score so far is kept

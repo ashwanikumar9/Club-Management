@@ -17,6 +17,7 @@ import type {
   SideKey,
   SportKey,
   TakeoverRequest,
+  Toss,
 } from "./types";
 
 /** Mutations are pure: they take a match and return a new one, or throw a MutationError. */
@@ -119,6 +120,20 @@ export function startMatch(match: Match, by: string): Match {
   requireAccess(match, by);
   if (match.status !== "scheduled") throw new MutationError("Match has already started.");
   return { ...match, status: "live", startedAt: now(), activeScorer: by };
+}
+
+/**
+ * Records the toss: who won, what they chose, who serves first and which side starts on the left.
+ * Possible before the match starts, or before the first point once it has.
+ */
+export function setToss(match: Match, by: string, toss: Toss): Match {
+  if (match.status === "closed") throw new MutationError("The match is closed.");
+  if (match.status === "live") {
+    if (!isOrganiser(match, by)) requireActiveScorer(match, by);
+    if (activeEvents(match.events).length > 0) throw new MutationError("The toss can only be changed before the first point.");
+  } else requireAccess(match, by);
+  if (!["A", "B"].includes(toss.firstServer) || !["A", "B"].includes(toss.left)) throw new MutationError("Choose who serves first.");
+  return { ...match, toss: { ...toss } };
 }
 
 /** Gives another person scoring access. Any scorer can do this, e.g. before their battery runs out. */

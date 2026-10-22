@@ -7,6 +7,7 @@ import { Sheet } from "@/components/Sheet";
 import { describePoint, playerName } from "@/lib/rally/commentary";
 import { other, type MatchState } from "@/lib/rally/engine";
 import { OutcomePicker } from "@/components/OutcomePicker";
+import { TossPanel } from "@/components/TossPanel";
 import { RulesFields } from "@/components/RulesFields";
 import { ScorersPanel } from "@/components/ScorersPanel";
 import { TakeoverCard, TakeoverPrompt, useTakeoverSettler } from "@/components/Takeover";
@@ -122,6 +123,7 @@ function Scorer({
         <Header match={match} />
         <Scoreboard match={match} state={state} />
         <RulesPanel match={match} state={state} by={by} />
+        <TossPanel match={match} by={by} />
         {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
         <button
           type="button"
@@ -206,6 +208,14 @@ function Scorer({
         </button>
       )}
 
+      {lastPoint?.endsChanged && !state.winner && (
+        <p className="rounded-xl bg-live/10 px-4 py-2 text-center text-sm font-semibold text-live">
+          ⇄ Change of ends. The buttons have swapped to match the court.
+        </p>
+      )}
+      {match.toss && !state.winner && state.points.length === 0 && (
+        <p className="text-center text-xs text-muted">{match.sides[match.toss.firstServer].name} serves first</p>
+      )}
       {state.winner ? (
         <div className="rounded-2xl border-2 border-accent bg-accent/10 p-4 text-center">
           <p className="font-bold">{match.sides[state.winner].name} wins the match</p>
@@ -216,7 +226,8 @@ function Scorer({
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {(["A", "B"] as const).map((side) => (
+          {/* With a toss, buttons follow the court: the side on the scorer's left is the left button. */}
+          {(match.toss ? [state.left, other(state.left)] : (["A", "B"] as const)).map((side) => (
             <button
               key={side}
               type="button"

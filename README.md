@@ -18,6 +18,8 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 - One active scorer at a time. Anyone with scoring access can request a take-over: the scorer gets 15
   seconds to allow or decline, and silence (e.g. a dead phone) passes scoring over automatically. The organiser takes over immediately without asking. Any scorer
   can give access to someone else by mobile number (with country code), email or username
+- Toss in the app (coin flip, choice, first server, starting side); serving and change of ends tracked
+  automatically per sport, with the +1 buttons laid out like the court
 - Point-by-point scoring with big `+1` buttons
 - Optional "how" (shot type) and "who" (player / jersey) prompts after each point, switchable mid-match
 - Auto-generated live commentary, game/set point, match point and result lines

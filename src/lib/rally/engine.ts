@@ -1,3 +1,4 @@
+import { SPORTS, type ServeConfig } from "./sports";
 import type { Match, RallyRules, ScoreEvent, SideKey } from "./types";
 
 /** Rules can change during a match, so the engine asks for the rules of each set. */
@@ -24,6 +25,10 @@ export interface PointResult {
   matchPoint: SideKey | null;
   /** True when the point was recorded after the match was already decided (only possible via edits). */
   ignored: boolean;
+  /** Side that served this rally (when a toss was recorded). */
+  server: SideKey | null;
+  /** Players changed ends after this point (end of a set, or halfway through the deciding set). */
+  endsChanged: boolean;
 }
 
 export interface MatchState {
@@ -38,6 +43,32 @@ export interface MatchState {
   matchPoint: SideKey | null;
   /** Rules in force for the current set. */
   rules: RallyRules;
+  /** Side to serve the next rally (null without a toss or when the match is over). */
+  server: SideKey | null;
+  /** Side currently on the scorer's left. */
+  left: SideKey;
+}
+
+/** Serving and ends tracking, from the toss and the sport's serve rules. */
+export interface ServeTracking {
+  firstServer: SideKey;
+  left: SideKey;
+  config: ServeConfig;
+}
+
+/** Who serves the next rally of a set, given its score so far. */
+function nextServer(
+  t: ServeTracking,
+  setFirst: SideKey,
+  lastWinner: SideKey | null,
+  score: { A: number; B: number },
+  target: number,
+): SideKey {
+  if (t.config.rule === "rally_winner") return lastWinner ?? setFirst;
+  const played = score.A + score.B;
+  const base = target - 1; // deuce from base–base: service alternates every point
+  const turn = played < 2 * base ? Math.floor(played / 2) : base + (played - 2 * base);
+  return turn % 2 === 0 ? setFirst : other(setFirst);
 }
 
 export const other = (side: SideKey): SideKey => (side === "A" ? "B" : "A");
@@ -92,7 +123,10 @@ export function rulesResolver(match: Pick<Match, "rules" | "ruleChanges">): Rule
  * awarded side, so tables, brackets and scoreboards treat it like any other result.
  */
 export function matchState(match: Match): MatchState {
-  const state = computeState(match.events, rulesResolver(match));
+  const tracking = match.toss
+    ? { firstServer: match.toss.firstServer, left: match.toss.left, config: SPORTS[match.sport].serve }
+    : undefined;
+  const state = computeState(match.events, rulesResolver(match), tracking);
   if (!state.winner && match.status === "closed" && match.outcome?.winner) {
     return { ...state, winner: match.outcome.winner, setPoint: null, matchPoint: null };
   }
@@ -100,12 +134,15 @@ export function matchState(match: Match): MatchState {
 }
 
 /** Replays the event log and derives the full match state. The log is the single source of truth. */
-export function computeState(events: ScoreEvent[], rulesInput: RallyRules | RulesForSet): MatchState {
+export function computeState(events: ScoreEvent[], rulesInput: RallyRules | RulesForSet, serve?: ServeTracking): MatchState {
   const rulesFor: RulesForSet = typeof rulesInput === "function" ? rulesInput : () => rulesInput;
   const sets: SetScore[] = [{ A: 0, B: 0, winner: null }];
   const setsWon = { A: 0, B: 0 };
   let winner: SideKey | null = null;
   const points: PointResult[] = [];
+  let setFirst: SideKey = serve?.firstServer ?? "A";
+  let lastWinner: SideKey | null = null;
+  let left: SideKey = serve?.left ?? "A";
 
   for (const event of activeEvents(events)) {
     const setIndex = sets.length - 1;
@@ -121,13 +158,19 @@ export function computeState(events: ScoreEvent[], rulesInput: RallyRules | Rule
         setPoint: null,
         matchPoint: null,
         ignored: true,
+        server: null,
+        endsChanged: false,
       });
       continue;
     }
 
     const rules = rulesFor(setIndex);
     const set = sets[setIndex];
+    const target = setTarget(rules, setIndex);
+    const server = serve ? nextServer(serve, setFirst, lastWinner, set, target) : null;
+    const leadBefore = Math.max(set.A, set.B);
     set[event.side] += event.points;
+    lastWinner = event.side;
     let setWon: SideKey | null = null;
     let matchWon: SideKey | null = null;
 
@@ -141,6 +184,15 @@ export function computeState(events: ScoreEvent[], rulesInput: RallyRules | Rule
       }
     }
 
+    // Ends change after every set, and once halfway through the deciding set.
+    let endsChanged = false;
+    if (setWon && !matchWon) endsChanged = true;
+    else if (!setWon && rules.bestOf > 1 && setIndex + 1 === rules.bestOf) {
+      const half = serve?.config.midSwitch === "floor" ? Math.floor(target / 2) : Math.ceil(target / 2);
+      if (leadBefore < half && Math.max(set.A, set.B) >= half) endsChanged = true;
+    }
+    if (endsChanged) left = other(left);
+
     const holder = pointHolder(set, setIndex, setsWon, rules);
     points.push({
       event,
@@ -152,9 +204,15 @@ export function computeState(events: ScoreEvent[], rulesInput: RallyRules | Rule
       setPoint: holder.setPoint,
       matchPoint: holder.matchPoint,
       ignored: false,
+      server,
+      endsChanged,
     });
 
-    if (setWon && !matchWon) sets.push({ A: 0, B: 0, winner: null });
+    if (setWon && !matchWon) {
+      sets.push({ A: 0, B: 0, winner: null });
+      setFirst = serve?.config.nextSet === "set_winner" ? setWon : other(setFirst);
+      lastWinner = null;
+    }
   }
 
   const currentSet = sets.length - 1;
@@ -173,5 +231,7 @@ export function computeState(events: ScoreEvent[], rulesInput: RallyRules | Rule
     setPoint: holder.setPoint,
     matchPoint: holder.matchPoint,
     rules,
+    server: serve && !winner ? nextServer(serve, setFirst, lastWinner, sets[currentSet], setTarget(rules, currentSet)) : null,
+    left,
   };
 }

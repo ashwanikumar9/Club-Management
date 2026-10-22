@@ -15,6 +15,7 @@ import {
   removeScorer,
   reopenMatch,
   setOutcome,
+  setToss,
   setLatestPointDetail,
   startMatch,
   cancelTakeover,
@@ -402,5 +403,52 @@ describe("retirements, walkovers and no result", () => {
     m = reopenMatch(m, ORG);
     expect(m.outcome).toBeUndefined();
     expect(state(m).winner).toBeNull();
+  });
+});
+
+describe("toss, serving and ends", () => {
+  const servers = (m: Match) => state(m).points.map((p) => p.server).join("");
+
+  it("badminton: the rally winner serves, and the game winner serves first in the next game", () => {
+    let m = setToss(newMatch(), ORG, { winner: "B", choice: "receive", firstServer: "A", left: "A" });
+    m = score(m, "ABBA");
+    expect(servers(m)).toBe("AABB");
+    expect(state(m).server).toBe("A");
+    m = score(m, "B".repeat(21)); // B wins game 1 (2–23 → wins at 21+)
+    expect(state(m).sets[0].winner).toBe("B");
+    expect(state(m).server).toBe("B");
+    expect(state(m).left).toBe("B"); // ends changed after the game
+  });
+
+  it("table tennis: service alternates every two points, every point at deuce, and the receiver serves first next game", () => {
+    let m = newMatch("table_tennis");
+    m = setToss(m, ORG, { firstServer: "A", left: "A" });
+    m = score(m, "ABABABABABAB"); // 6–6
+    expect(servers(m)).toBe("AABBAABBAABB");
+    m = score(m, "ABABABAB"); // 10–10
+    m = score(m, "AB"); // deuce: alternate every point
+    expect(state(m).points.slice(-2).map((p) => p.server)).toEqual(["A", "B"]);
+    m = score(m, "AA"); // A wins 13–11
+    expect(state(m).sets[0].winner).toBe("A");
+    expect(state(m).server).toBe("B");
+  });
+
+  it("changes ends halfway through the deciding game and says so", () => {
+    let m = setToss(newMatch(), ORG, { firstServer: "A", left: "A" });
+    m = score(m, "A".repeat(21) + "B".repeat(21)); // 1–1 in games
+    expect(state(m).left).toBe("A"); // switched twice
+    m = score(m, "A".repeat(10));
+    expect(state(m).left).toBe("A");
+    m = score(m, "A");
+    expect(state(m).left).toBe("B");
+    expect(buildCommentary(m, state(m)).map((l) => l.text)).toContain("Change of ends");
+  });
+
+  it("can only be set before the first point and announces the choice", () => {
+    let m = setToss(newMatch(), ORG, { winner: "B", choice: "serve", firstServer: "B", left: "A" });
+    expect(buildCommentary(m, state(m)).map((l) => l.text)).toContain("Asha won the toss and chose to serve. Asha to serve first.");
+    m = score(m, "A");
+    expect(() => setToss(m, ORG, { firstServer: "A", left: "A" })).toThrow(/before the first point/);
+    expect(state(score(newMatch(), "AB")).server).toBeNull(); // no toss, no tracking
   });
 });

@@ -78,6 +78,14 @@ export function buildCommentary(match: Match, state: MatchState): CommentaryLine
       set: 1,
     });
   }
+  if (match.startedAt && match.toss) {
+    const t = match.toss;
+    const choice =
+      t.winner && t.choice
+        ? `${nameOf(t.winner)} won the toss and chose to ${t.choice === "side" ? "pick a side" : t.choice}. `
+        : "";
+    lines.push({ id: "toss", kind: "system", text: `${choice}${nameOf(t.firstServer)} to serve first.`, at: match.startedAt, set: 1 });
+  }
 
   let prevSetPoint: SideKey | null = null;
   let prevMatchPoint: SideKey | null = null;
@@ -97,6 +105,9 @@ export function buildCommentary(match: Match, state: MatchState): CommentaryLine
       side: p.event.side,
     });
 
+    if (p.endsChanged && !p.setWon) {
+      lines.push({ id: `${p.event.id}-ends`, kind: "system", text: "Change of ends", at, set: setNo });
+    }
     if (p.matchWon) {
       lines.push({
         id: `${p.event.id}-match`,
