@@ -65,11 +65,10 @@ All of these are under **Authentication** in the left sidebar.
    email templates (next step). On free-plan projects created since June 2026, Supabase only allows editing
    the templates once your own email sender is connected, and its built-in sender is limited to a few emails
    per hour anyway, so set this up first:
-   1. Create a free account with an email service, e.g. **Brevo** (300 emails/day free) or **Resend**
-      (3,000/month, 100/day free), and follow its steps to verify the address or domain you'll send from.
-   2. In that service, find its **SMTP** details: host, port, username and password (or API key).
-   3. Authentication → **Emails** → **SMTP Settings** (address `…/auth/smtp`) → turn on **Enable Custom SMTP**,
-      fill in the sender email and name ("Rally Scorer") and the SMTP details, and **Save**.
+   We recommend **Brevo**: free (300 emails a day), and it needs no website or domain. Each person gets one
+   email per new phone they sign in on; spectators never sign in, so this is plenty for club events.
+   See [Setting up Brevo](#setting-up-brevo-free-email-sender) below for the clicks, then come back to step 3.3.
+   (Resend also works, but it only sends to other people once you own a domain.)
 3. **Code instead of link**: Authentication → **Emails** → **Templates** (address `…/auth/templates`). Open
    **Magic Link**, replace the message body with the contents of
    [`supabase/templates/sign-in-code.html`](../supabase/templates/sign-in-code.html), set the subject to
@@ -80,6 +79,35 @@ All of these are under **Authentication** in the left sidebar.
    **Site URL** to your app's address (for example `https://your-app.vercel.app`) and **Save**.
 5. Optional, **SMS codes**: Authentication → **Sign In / Providers** → **Phone**: enable it and connect an SMS
    provider (Twilio, MessageBird, Vonage or Textlocal). SMS costs money per message; email codes are free.
+
+### Setting up Brevo (free email sender)
+
+1. Sign up at <https://www.brevo.com> (free plan). Confirm your email and fill in the short profile it asks for;
+   Brevo may review a new account before it sends anything, which can take a few hours.
+2. **Add the "from" address**: top-right menu → **Senders, Domains & Dedicated IPs** → **Senders** →
+   **Add a sender**. Use an address you can open (Gmail, Rediffmail or your club's), name it "Rally Scorer",
+   and click the link in the confirmation email Brevo sends to it.
+3. **Get the SMTP details**: top-right menu → **SMTP & API** → **SMTP** tab. Note the **SMTP server**
+   (`smtp-relay.brevo.com`), **port** (`587`) and **login** (looks like `…@smtp-brevo.com`), then click
+   **Generate a new SMTP key**, name it "Supabase" and copy the key (it's shown only once).
+4. **Paste into Supabase**: Authentication → **Emails** → **SMTP Settings** → **Enable Custom SMTP**:
+
+   | Supabase field | Value |
+   |---|---|
+   | Sender email | the address verified in step 2 |
+   | Sender name | Rally Scorer |
+   | Host | `smtp-relay.brevo.com` |
+   | Port number | `587` |
+   | Username | the SMTP login from step 3 |
+   | Password | the SMTP key from step 3 |
+
+   Leave the other fields as they are and **Save**.
+5. **Test**: sign in to the app with your email. The code should arrive within a minute; if it's in spam,
+   mark it "Not spam". Brevo → **Transactional** → **Logs** shows every email sent and why one failed.
+
+Codes sent from a Gmail / Rediffmail address can land in spam for some people. If that happens often, buy a
+domain (e.g. `yourclub.in`, a few hundred rupees a year), add it in Brevo under **Senders, Domains &
+Dedicated IPs → Domains** and follow its DNS steps; then send from an address like `scores@yourclub.in`.
 
 ## 4. Connect the app
 
