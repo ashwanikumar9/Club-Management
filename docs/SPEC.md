@@ -6,21 +6,23 @@
 ## 1. Vision
 
 A unified platform where **any organiser** can host a multi-sport event (sports meet,
-college fest, corporate games), **score every match live** from a phone, and give
-spectators **one link** to see what is happening now, what is next, live scores,
-results, standings and the overall medal table. All results are stored and archived.
+college fest, corporate games), **score every match live, point by point,** from a phone, and give
+spectators **one link** to see what is happening now, what is next, live scores, a live
+commentary feed, results, standings and the overall medal table. All results are stored and archived.
 
 ## 2. Scope
 
 ### In Version 1
 - Organiser accounts; any organiser can create and manage their own events
-- Event setup: sports, categories, venues, teams/participants
+- Event setup: sports, categories, venues, teams/participants with rosters (names, jersey numbers)
 - Pre-built rule templates per sport, fully customisable
 - Fixture formats: knockout, round-robin, groups → knockout, heats → final
-- Live scoring (team/participant level) with **edit at any time**
+- **Point-by-point live scoring** with optional detail (how the point was won, who scored)
+- **Auto-generated live commentary** from scoring entries
+- **Undo** available for the whole match until it is closed; admin-only editing after close
 - Multiple scorers per match; organiser can also score
 - Scorer access via code
-- Public live site with realtime updates
+- Public live site with realtime score and commentary updates
 - Optional livestream link per event and per match (link only, no hosting)
 - League tables, brackets, overall medal / points table
 - **Manual medal entry** for any sport name to any team/player
@@ -36,11 +38,13 @@ results, standings and the overall medal table. All results are stored and archi
 | Kabaddi | Timed points |
 | Chess | Result only |
 | Athletics | Ranked performance |
-| Any other sport | Manual medal entry (no live scoring) |
+| Any other sport | Custom sport on any model, or manual medal entry |
+
+Basketball is provided as a **timed points template** (configuration only, no extra engine work).
 
 ### Not in Version 1 (planned later)
 - Cricket (next after V1)
-- Player-level scoring, live commentary feed, player stats
+- Player and team statistics dashboards (built from the same scoring data)
 - Judged-sport model
 - Offline scoring
 - Push notifications, big-screen display mode
@@ -52,43 +56,123 @@ results, standings and the overall medal table. All results are stored and archi
 
 | Role | Access |
 |---|---|
-| **Organiser** | Signs up with an account. Creates events, owns them, configures everything, can score any match, can edit any score or result, can invite co-organisers. |
-| **Scorer** | Joins with an access code (no full account needed). Code scoped to an event or specific matches. Can score and edit scores of assigned matches. |
+| **Organiser (owner)** | Signs up with an account. Creates and owns events, configures everything, can score any match, can edit any score after close, invites co-organisers. |
+| **Admin (co-organiser)** | Invited by the owner. Same permissions as the owner for that event, except deleting the event or managing other admins. |
+| **Scorer** | Joins with an access code (no full account needed). Code scoped to an event or specific matches. Can score, undo and close assigned matches. **Cannot edit after close.** |
 | **Spectator** | No login. Read-only public pages. |
 
 Multiple scorers can score the same match at the same time; all scorer screens stay in sync in realtime.
 
-## 4. Core Architecture Principle: Event-Log Scoring
+## 4. Core Architecture: Point-by-Point Event Log
 
-Every scoring action is stored as a **score event** (an entry in a log), not as an overwritten total.
-The displayed score is **computed from the log**.
+Every scoring action is stored as a **score event** in an append-only log. The score, the
+commentary and (later) statistics are all **computed from this log**.
 
 ```
-#1  10:02  Team A  +1  raid_point      by scorer "Court-1"
-#2  10:03  Team B  +1  tackle_point    by organiser
-#3  10:05  Team A  +2  all_out         by scorer "Court-1"
+#1  10:02  Side A  +1  smash          actor: Player 1           by scorer "Court-1"
+#2  10:03  Side B  +1  opponent_error actor: Player 2  on: P1   by organiser
+#3  10:03  Side A  +1  (no detail)    actor: —                  by scorer "Court-1"
 ```
 
-Why:
-- **Edit at any time** — any event can be corrected or deleted, not only the last one
-- **Multiple scorers** — new events from different scorers are appended without overwriting each other
-- **Audit trail** — every change records who, when and what changed (old → new)
-- **Future-proof** — V2 adds optional fields (player, assist, note) to the same events to produce
-  CricHeroes-style commentary and player stats without a rewrite
+Each score event holds:
+| Field | Purpose |
+|---|---|
+| `side` | Team / player side that receives the points |
+| `points` | Points awarded (0 allowed, e.g. empty raid, card) |
+| `action_key` | Optional action from the sport's action catalogue (e.g. `smash`, `three_pointer`) |
+| `actor` | Optional player who scored / performed the action |
+| `related_player` | Optional second player (assist, defender tackled, opponent who erred) |
+| `period` | Set / game / half / quarter number |
+| `clock` | Match clock at the time (timed sports) |
+| `meta` | Extra sport-specific data (e.g. defenders touched in a raid) |
+| `score_after` | Snapshot of the score after this event (for fast display) |
+| `created_by`, timestamps, `version` | Audit and concurrency |
 
-### Editing rules
-- Any score event can be edited or deleted during or after the match (organiser and assigned scorers)
-- Finished matches can be re-opened or corrected by the organiser
-- Edits recompute: match score → match winner → league table / bracket progression → medal table
-- Edits are logged (original value kept); public pages update in realtime
-- Concurrent edits to the same event are protected with a version check (the second writer is asked to refresh)
-- Optional "manual final score override" for organisers when the log is not needed
+This design means commentary and future statistics need **no rewrite**: the data is captured from day one.
 
-## 5. Scoring Models & Templates
+## 5. Undo & Editing Rules
 
-Each sport uses a template built on a scoring model. Organisers can use it as-is or change any value.
+### Match lifecycle
+`Scheduled → Live → (Break) → Live → … → Closed`
 
-### 5.1 Sets / rally — Badminton, Table Tennis, Volleyball
+### While the match is not closed (Live / Break)
+- An **Undo** button is always active for the whole match, for every scorer and organiser/admin on that match
+- Undo removes the **most recent entry in the match log** and can be pressed repeatedly to step back further
+- Before undoing, the button shows what will be removed (e.g. "Undo: Player 1 +1, smash, 18–17") so a
+  scorer does not unknowingly undo another scorer's point
+- Undone entries are kept in the audit history (soft-deleted), never lost
+- Undo also reverses automatic consequences (e.g. undoing a set-winning point re-opens that set)
+
+### Closing a match
+- A scorer or organiser/admin presses **Close match** after a confirmation showing the final result
+- Closing locks scoring, finalises the result and updates standings / brackets / medal table
+
+### After the match is closed
+- **Only the organiser and admins** can change it
+- They can edit any entry (points, side, action, player), add a missed entry, or delete an entry
+- They can also re-open the match (returns it to Live with undo enabled again)
+- Every post-close edit is recorded in the audit trail (who, when, old → new) and the public match page
+  shows a small "Result corrected" marker
+- Edits recompute: match score → winner → league table / bracket progression → medal table → commentary
+
+### Concurrency
+- New entries from multiple scorers are appended without conflict
+- Undo / edit use a version check; if the log changed in the meantime, the user sees the updated log and confirms again
+
+## 6. Scoring Flow & Detail Levels
+
+### Basic flow (every sport)
+1. Scorer taps **+** (or `+2`, `+3` etc.) on the side that won the point
+2. If detail prompts are on, a quick bottom sheet appears:
+   - **How?** — action buttons from the sport's catalogue (e.g. Smash / Drop / Opponent error)
+   - **Who?** — player picker showing names and jersey numbers of that side
+3. Scorer taps an option or **Skip** — the point is already counted; detail is optional
+4. Commentary line is generated instantly
+
+The point is recorded on the first tap, so detail prompts never slow down or block scoring.
+
+### Detail level settings (per match, changeable at any time during the game)
+| Setting | Effect |
+|---|---|
+| Ask **how** the point was won | Shows action catalogue after each point |
+| Ask **who** scored | Shows player picker after each point |
+| Both off (Quick mode) | Plain `+1`; commentary: "Player 1 scored a point" / "Team A scores" |
+
+- Defaults come from the event's sport settings; scorers and organisers can toggle them mid-match
+- Switching levels mid-match only affects new entries; existing entries keep their detail
+- For singles (badminton, table tennis) the "who" is implied by the side, so only "how" is asked
+
+### Action catalogue (customisable)
+Each sport template ships with a default catalogue. For every action the organiser can set:
+- Label (e.g. "Great smash")
+- Points (e.g. +1, +2, +3, 0)
+- Whether to ask for a player / a second player
+- Commentary template(s)
+- Enabled / hidden
+
+Organisers can add, rename, hide or re-point actions **at any time, including mid-game**; changes apply to new entries.
+
+## 7. Commentary
+
+- Generated automatically from each score event using the action's commentary template
+- Templates use placeholders, e.g.
+  - `"{actor} wins the point with a great smash"`
+  - `"{actor} plays a delicate drop shot — point {side}"`
+  - `"{opponent} misjudges the shuttle — point to {actor}"`
+  - `"{opponent} hits into the net / out — point to {side}"`
+  - `"#{jersey} {actor} scores a three-pointer!"`
+- Several templates per action are allowed; one is picked for variety
+- Fallback when no detail is given: `"{actor or side} scored a point"`
+- **System commentary** generated automatically: match start, set/game point, match point, set won,
+  half-time, all-out, period end, match result
+- Score context appended where useful, e.g. "(19–17, Game 2)"
+- Commentary is **re-generated** when an entry is undone or edited, so the feed always matches the score
+- Public match page shows the commentary feed live, newest first
+- Organiser/scorer can add a free-text note to any entry (e.g. "Spectacular rally of 40 shots")
+
+## 8. Scoring Models & Default Templates
+
+### 8.1 Sets / rally — Badminton, Table Tennis, Volleyball
 | Setting | Badminton | Table Tennis | Volleyball |
 |---|---|---|---|
 | Points per set/game | 21 | 11 | 25 |
@@ -97,117 +181,157 @@ Each sport uses a template built on a scoring model. Organisers can use it as-is
 | Point cap | 30 | none | none |
 | Deciding set points | 21 | 11 | 15 |
 
-Scorer UI: `+1` per side, auto set completion, auto match completion. Supports singles/doubles/team.
+Automatic: set completion, match completion, side switch reminder, server tracking (optional).
+Supports singles / doubles / team.
 
-### 5.2 Timed points — Football, Kabaddi
-**Football:** 2 halves × 45 min (editable), goal +1, optional extra time and penalty shootout, optional cards (yellow/red) recorded as events with no points.
+**Default actions**
+| Badminton | Table Tennis | Volleyball |
+|---|---|---|
+| Smash | Smash | Attack / spike kill |
+| Drop shot | Loop / topspin winner | Block |
+| Net shot | Push / chop winner | Service ace |
+| Clear / drive winner | Serve ace | Tip / dump |
+| Opponent misjudged (left it in) | Edge / net ball | Opponent attack error |
+| Opponent error — net | Opponent error — net | Opponent service error |
+| Opponent error — out | Opponent error — out | Opponent net touch / fault |
+| Service fault by opponent | Service fault by opponent | Rotation fault |
 
-**Kabaddi:** 2 halves × 20 min (editable). Buttons per team:
-| Action | Points |
-|---|---|
-| Raid point | +1 |
-| Bonus point | +1 |
-| Tackle point | +1 |
-| Super tackle | +2 |
-| All-out | +2 |
-| Technical point | +1 |
+### 8.2 Timed points — Football, Kabaddi (+ Basketball template)
+Common: match clock (start / pause / resume), period control, draw allowed or tie-break required (configurable).
 
-Shows score per half and total. Organisers can rename or add custom buttons with custom point values.
+**Football:** 2 halves × 45 min (editable), optional extra time and penalty shootout.
+| Action | Points | Asks |
+|---|---|---|
+| Goal (open play / header / free kick / penalty) | +1 | Scorer, assist (optional) |
+| Own goal | +1 to opponent | Player |
+| Yellow card / red card | 0 | Player |
+| Substitution | 0 | Player off, player on |
+| Penalty shootout kick (scored / missed) | shootout tally | Player |
 
-Common: match clock (start/pause/resume), period control, draw allowed or tie-break required (configurable).
+**Kabaddi:** 2 halves × 20 min (editable).
+| Action | Points | Asks |
+|---|---|---|
+| Raid point (touch) | +1 per defender touched | Raider, defenders |
+| Bonus point | +1 | Raider |
+| Tackle point | +1 | Defender(s), raider tackled |
+| Super tackle | +2 | Defender(s) |
+| All-out | +2 | — |
+| Technical point | +1 | — |
+| Empty raid | 0 | Raider |
+| Do-or-die raid (flag) | — | Raider |
 
-### 5.3 Result only — Chess
+**Basketball (template):** 4 quarters × 10 min.
+| Action | Points | Asks |
+|---|---|---|
+| Free throw | +1 | Scorer (name / jersey) |
+| Field goal | +2 | Scorer, assist (optional) |
+| Three-pointer | +3 | Scorer, assist (optional) |
+| Foul | 0 | Player |
+
+### 8.3 Result only — Chess
 Win / Draw / Loss (1 – ½ – 0 by default, configurable). Formats: knockout, round-robin (Swiss later).
-Optional tiebreak entry (e.g. armageddon / rapid result).
+Result reason (optional): checkmate, resignation, time, stalemate, draw by agreement, repetition.
+Optional tiebreak entry (rapid / armageddon). Commentary: "{white} beats {black} by checkmate".
 
-### 5.4 Ranked performance — Athletics
-- Event types: track (time, lower is better), field (distance/height, higher is better)
+### 8.4 Ranked performance — Athletics
+- Track (time, lower is better) and field (distance / height, higher is better)
 - Heats → final; configurable number qualifying from heats
 - Scorer enters each participant's mark; ranking is automatic
-- Status markers: DNS, DNF, DQ, NM (no mark)
+- Status markers: DNS, DNF, DQ, NM (no mark); optional attempts for field events
 - Top 3 in the final become gold / silver / bronze automatically
+- Commentary: "{athlete} clocks 11.24s and takes the lead", "{athlete} sets a new meet record"
 
-### 5.5 Custom sport
-Organiser names any sport and picks one of the above models (e.g. Kho-Kho → timed points, Throwball → sets).
+### 8.5 Custom sport
+Organiser names any sport, picks a model, and builds its action catalogue
+(e.g. Kho-Kho → timed points with "Tag", "Dive" actions).
 
-## 6. Formats & Standings
+## 9. Formats & Standings
 - **Knockout:** auto bracket, byes, seeding (manual or random), optional third-place match or shared bronze
 - **Round-robin / league:** points per win/draw/loss configurable; tiebreakers: points → head-to-head → score difference → score for
 - **Groups → knockout:** top N per group advance
 - **Heats → final:** for athletics
 - Fixtures can be auto-generated or created manually; each has date, time, venue/court and scorer
 
-## 7. Medal / Points Table
-- Medals awarded **automatically** from sport results (knockout final, league winner, athletics final)
-- **Manual medal entry**: organiser types any sport/event name and awards any medal (gold/silver/bronze or a custom medal) to any team or player — for sports not scored on the platform
+## 10. Medal / Points Table
+- Medals awarded **automatically** from closed results (knockout final, league winner, athletics final)
+- **Manual medal entry**: organiser types any sport/event name and awards any medal (gold/silver/bronze or a custom medal) to any team or player
 - Table modes: medal count (gold-first ranking) or points (e.g. gold 5, silver 3, bronze 1 — configurable)
 - Grouping by team, institution or house
 
-## 8. Screens
+## 11. Screens
 
 ### Public (no login)
 - Event home: Live now, Up next, Recent results, livestream link
 - Schedule (filter by day, venue, sport)
-- Match page: live score, status (Upcoming / Live / Break / Finished), timeline, stream link
+- Match page: live score, status, **live commentary feed**, set/period breakdown, stream link
 - Sport page: fixtures, bracket / league table, final standings
 - Medal / points table
 - Team / participant page
 - Events archive
 
-### Organiser
+### Organiser / Admin
 - Sign up / login, my events dashboard
-- Create event wizard: details → sports (from templates) → customise rules → venues
-- Teams / participants (manual + CSV upload)
+- Create event wizard: details → sports (from templates) → customise rules & action catalogue → venues
+- Teams / participants / rosters with jersey numbers (manual + CSV upload)
 - Fixture generator and editor, scorer assignment
 - Scorer access codes (generate, revoke)
 - Manual medal entry
-- Score correction / match re-open
-- Livestream links
+- Closed-match editor (edit / add / delete entries, re-open match) with audit history
+- Livestream links, admin invitations
 
 ### Scorer
 - Enter code → my matches → scoring screen
-- Large buttons, high contrast, one-handed use
-- Live timeline with edit/delete on each entry
-- Period controls, finish match
+- Large `+` buttons per side (and `+2` / `+3` where the sport uses them)
+- Detail bottom sheet (how / who) with Skip
+- **Undo** button always visible (shows what it will undo)
+- Detail level toggles (ask how / ask who)
+- Live score + commentary timeline
+- Period controls, Close match (with confirmation)
 
-## 9. Tech Stack
+## 12. Tech Stack
 | Layer | Choice |
 |---|---|
 | Framework | Next.js (App Router) + TypeScript |
 | UI | Tailwind CSS + shadcn/ui, mobile-first, installable PWA |
 | Database | Supabase (PostgreSQL) — free tier for initial data |
-| Auth | Supabase Auth for organisers; access codes for scorers |
-| Realtime | Supabase Realtime for live scores |
-| Security | Postgres Row Level Security per event / role |
+| Auth | Supabase Auth for organisers/admins; access codes for scorers |
+| Realtime | Supabase Realtime for live scores and commentary |
+| Security | Postgres Row Level Security per event / role (scorer cannot edit closed matches) |
 | Hosting | Vercel (free tier) + Supabase |
 
 Note: Supabase free-tier projects pause after a period of inactivity; upgrade before relying on it for a live event.
 
-## 10. Data Model (outline)
-- `organisers` (auth users), `event_members` (event ↔ organiser, role)
+## 13. Data Model (outline)
+- `organisers` (auth users), `event_members` (event ↔ user, role: owner | admin)
 - `events` (name, dates, location, livestream_url, medal_table_mode)
 - `venues`
-- `event_sports` (sport, scoring_model, rules_config JSON, format)
+- `event_sports` (sport, scoring_model, rules_config JSON, format, default detail settings)
+- `action_catalogue` (event_sport, key, label, points, asks_actor, asks_related, commentary_templates, enabled, sort)
 - `categories` (e.g. Men's Singles U-19)
-- `teams`, `participants`, `team_members`
+- `teams`, `participants` (name, jersey_number), `team_members`
 - `stages` / `groups` (group stage, knockout rounds, heats)
-- `matches` (fixture, venue, start time, status, livestream_url, version)
+- `matches` (fixture, venue, start time, status, closed_at, closed_by, livestream_url, detail settings, version)
 - `match_sides` (team/participant per side or lane)
-- `score_events` (match, side, type, points, period, meta JSON, created_by, edited_at, deleted_at, version)
-- `score_event_history` (audit trail of edits)
-- `performances` (athletics marks, status)
+- `score_events` (match, side, points, action_key, actor_id, related_id, period, clock, meta JSON,
+  score_after, note, created_by, undone_at, undone_by, version)
+- `score_event_history` (audit trail of post-close edits: old → new, by, at)
+- `commentary` (derived view / table regenerated from score_events + system events)
+- `performances` (athletics marks, attempts, status)
 - `medals` (event, sport label, medal type, team/participant, source: auto | manual)
-- `scorer_codes` (code hash, event, allowed matches, expiry)
+- `scorer_codes` (code hash, event, allowed matches, expiry, revoked)
 
-## 11. Roadmap
+## 14. Roadmap
+
 | Phase | Deliverable |
 |---|---|
 | 0 | Spec agreed (this document) |
-| 1 | Project setup, Supabase schema, organiser auth, event/sport/team/venue setup |
-| 2 | Fixture formats & generators, schedule, scorer codes & assignment |
-| 3 | Scoring engine (event log + editing + multi-scorer sync); sets, timed points, result-only models |
-| 4 | Public live site with realtime updates and livestream links |
-| 5 | Standings, brackets, medal table (auto + manual), archive |
-| 6 | Athletics (ranked performance, heats → final) |
-| 7 | Pilot at a real event, feedback, fixes |
-| Next | Cricket, player-level scoring & commentary, stats, notifications, offline, big-screen mode |
+| 1 — Foundation | Next.js + Supabase setup, schema, organiser/admin auth, event / venue / sport setup, teams, participants, rosters with jersey numbers (incl. CSV) |
+| 2 — Fixtures & access | Knockout, round-robin, groups → knockout generators, manual fixtures, schedule, scorer codes and assignment |
+| 3 — Scoring engine core | Point-by-point event log, Quick mode `+1/+2/+3`, Undo (until close), Close match, post-close admin editing with audit, multi-scorer realtime sync, match lifecycle |
+| 4 — Sport rules | Sets / rally (badminton, table tennis, volleyball), timed points (football, kabaddi, basketball template), result only (chess) — auto set/period/match completion |
+| 5 — Detail & commentary | Action catalogues with defaults, how/who bottom sheet, detail toggles mid-match, commentary templates & generator, system commentary, catalogue editor for organisers |
+| 6 — Public live site | Event home, schedule, live match page with commentary feed, realtime updates, livestream links |
+| 7 — Results & standings | League tables, brackets & progression, medal table (auto + manual), archive |
+| 8 — Athletics | Ranked performance, heats → final, auto medals, athletics commentary |
+| 9 — Pilot | Run at a real event, feedback, fixes |
+| Next | Cricket (ball-by-ball with commentary), player/team statistics, notifications, offline scoring, big-screen mode, judged sports |
