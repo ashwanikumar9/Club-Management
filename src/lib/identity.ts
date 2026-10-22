@@ -42,7 +42,7 @@ export const DEFAULT_COUNTRY = "91";
  * a number typed without "+" or "00" gets the selected country code, and a leading 0 (trunk prefix) is dropped,
  * so "098765 43210" with India selected and "+91 98765 43210" are the same person.
  */
-export function parseIdentity(input: string, countryCode: string = DEFAULT_COUNTRY): ParsedIdentity {
+export function parseIdentity(input: string, countryCode: string = DEFAULT_COUNTRY, allowUsername = true): ParsedIdentity {
   const value = input.trim();
   if (!value) return { ok: false, error: "Enter a mobile number, email or username." };
 
@@ -63,6 +63,7 @@ export function parseIdentity(input: string, countryCode: string = DEFAULT_COUNT
       : { ok: false, error: "That mobile number looks too short or too long." };
   }
 
+  if (!allowUsername) return { ok: false, error: "Enter a mobile number or email address." };
   const username = value.replace(/^@/, "").toLowerCase();
   return /^[a-z0-9_.]{3,30}$/.test(username)
     ? { ok: true, key: `@${username}`, kind: "username" }

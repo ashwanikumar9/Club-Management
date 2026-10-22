@@ -470,6 +470,12 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
 - Period controls, Close match (with confirmation)
 
 ## 12. Tech Stack
+
+> Implemented: Supabase stores matches, tournaments and ties as JSON documents in one table with realtime
+> and row-level security (organiser or listed scorer may write; anyone may read). Sign-in by one-time code
+> (email; SMS with a provider). Without Supabase settings the app runs in prototype mode on browser storage.
+> Setup: `docs/DATABASE_SETUP.md`.
+
 | Layer | Choice |
 |---|---|
 | Framework | Next.js (App Router) + TypeScript |

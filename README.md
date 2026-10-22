@@ -52,13 +52,19 @@ npm run build
 npm start -- -H 0.0.0.0   # then open http://<computer-ip>:3000 on the phone
 ```
 
-### Prototype notes
+### Database (live on every phone)
 
-- Data is stored in the browser (localStorage). Open the scorer and public view in two tabs of the
-  same browser to see live updates. Supabase (shared data, realtime across devices, logins, scorer
-  codes) replaces this in the next step; only `src/lib/store.ts` changes.
-- Sign in (top right) with any mobile number, email or username; there is no verification yet. Sign-in is
-  per browser tab, so open the scorer screen in two tabs as two people to try the take-over pop-up. The creator of a match is its organiser.
+Connect Supabase to share live scores between devices, sign in with a one-time code and enforce who may
+change what. Step-by-step: [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md). The app reads
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`; the schema is in `supabase/migrations`.
+
+### Prototype mode (no database)
+
+- Without those settings, data is stored in the browser (localStorage). Open the scorer and public view in
+  two tabs of the same browser to see live updates.
+- Sign in (top right) with any mobile number, email or username; there is no verification. Sign-in is per
+  browser tab, so open the scorer screen in two tabs as two people to try the take-over pop-up. The creator
+  of a match is its organiser.
 
 ## Code map
 
@@ -75,7 +81,9 @@ npm start -- -H 0.0.0.0   # then open http://<computer-ip>:3000 on the phone
 | `src/lib/tie/tie.ts` | Team ties: line-ups, match creation, tie score and winner |
 | `src/app/ties/[id]` | Tie page: team score, matches, line-up picker |
 | `src/lib/identity.ts` | Mobile / email / username parsing and normalisation |
-| `src/lib/store.ts` | Prototype storage (to be replaced by Supabase) |
+| `src/lib/store.ts` | Storage: Supabase (live, versioned writes) or browser storage in prototype mode |
+| `src/lib/remote.ts` | Supabase client, document reads/writes, live updates |
+| `supabase/migrations` | Database table, live updates and permission rules |
 | `src/app/matches/[id]/score` | Scorer screen |
 | `src/app/matches/[id]` | Public match view |
 | `src/app/matches/[id]/edit` | Organiser correction of closed matches |

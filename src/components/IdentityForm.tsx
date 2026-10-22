@@ -2,14 +2,18 @@
 
 import { useState } from "react";
 import { COUNTRIES, DEFAULT_COUNTRY, parseIdentity } from "@/lib/identity";
+import { isRemote } from "@/lib/store";
 
 /** One field that accepts a mobile number, email address or username. */
 export function IdentityForm({
   submitLabel,
   onSubmit,
   autoFocus = false,
+  allowUsername = !isRemote,
 }: {
   submitLabel: string;
+  /** Usernames can't receive sign-in codes, so they are only offered in prototype mode. */
+  allowUsername?: boolean;
   /** Returns an error message to show, or null on success. */
   onSubmit: (key: string) => string | null;
   autoFocus?: boolean;
@@ -19,7 +23,7 @@ export function IdentityForm({
   const [error, setError] = useState<string | null>(null);
 
   function submit() {
-    const parsed = parseIdentity(value, country);
+    const parsed = parseIdentity(value, country, allowUsername);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -63,8 +67,8 @@ export function IdentityForm({
               submit();
             }
           }}
-          placeholder="Mobile number, email or username"
-          aria-label="Mobile number, email or username"
+          placeholder={allowUsername ? "Mobile number, email or username" : "Mobile number or email"}
+          aria-label={allowUsername ? "Mobile number, email or username" : "Mobile number or email"}
           autoComplete="off"
           autoCapitalize="none"
           autoFocus={autoFocus}

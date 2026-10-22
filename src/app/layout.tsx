@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { UserMenu } from "@/components/UserMenu";
+import { SyncNotice, UserMenu } from "@/components/UserMenu";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,6 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4">{children}</main>
+        <SyncNotice />
       </body>
     </html>
   );
