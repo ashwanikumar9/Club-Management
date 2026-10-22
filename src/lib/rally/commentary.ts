@@ -1,4 +1,5 @@
 import { other, type MatchState } from "./engine";
+import { describeRules } from "./rules";
 import { SPORTS } from "./sports";
 import type { Match, ScoreEvent, SideKey } from "./types";
 
@@ -126,6 +127,20 @@ export function buildCommentary(match: Match, state: MatchState): CommentaryLine
     }
     prevSetPoint = p.setPoint;
     prevMatchPoint = p.matchPoint;
+  }
+
+  // Rule changes are announced just before the first point recorded after them.
+  for (const change of match.ruleChanges ?? []) {
+    const line: CommentaryLine = {
+      id: `rules-${change.id}`,
+      kind: "system",
+      text: `Rules changed from ${sport.setLabel} ${change.fromSet + 1}: ${describeRules(change.rules, sport.setLabel)}`,
+      at: change.at,
+      set: change.fromSet + 1,
+    };
+    const index = lines.findIndex((l) => l.kind === "point" && l.at > change.at);
+    if (index < 0) lines.push(line);
+    else lines.splice(index, 0, line);
   }
 
   if (match.status === "closed" && match.closedAt) {

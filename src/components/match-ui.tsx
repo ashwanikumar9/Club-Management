@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { buildCommentary, type CommentaryLine } from "@/lib/rally/commentary";
-import { computeState, type MatchState } from "@/lib/rally/engine";
+import { matchState, type MatchState } from "@/lib/rally/engine";
 import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
 import type { Match, SideKey } from "@/lib/rally/types";
 import { useMatch } from "@/lib/store";
@@ -14,7 +14,7 @@ export const sideSoft: Record<SideKey, string> = { A: "bg-side-a-soft", B: "bg-s
 
 export function useMatchView(id: string) {
   const match = useMatch(id);
-  const state = useMemo(() => (match ? computeState(match.events, match.rules) : null), [match]);
+  const state = useMemo(() => (match ? matchState(match) : null), [match]);
   const commentary = useMemo(() => (match && state ? buildCommentary(match, state) : []), [match, state]);
   return { match, state, commentary };
 }
@@ -76,7 +76,7 @@ export function Scoreboard({ match, state, compact = false }: { match: Match; st
         <span>
           {state.winner
             ? `${sport.setLabel}s ${state.setsWon.A}–${state.setsWon.B}`
-            : `${sport.setLabel} ${state.currentSet + 1} of ${match.rules.bestOf}`}
+            : `${sport.setLabel} ${state.currentSet + 1} of ${state.rules.bestOf}`}
         </span>
         <StatusBadge match={match} state={state} />
       </div>

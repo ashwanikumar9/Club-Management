@@ -4,6 +4,8 @@ import Link from "next/link";
 import { use } from "react";
 import { CommentaryFeed, MatchGate, Scoreboard, matchSubtitle, useMatchView } from "@/components/match-ui";
 import { isCorrected } from "@/lib/rally/mutations";
+import { describeRules } from "@/lib/rally/rules";
+import { SPORTS } from "@/lib/rally/sports";
 import { useRole } from "@/lib/store";
 
 /** Spectator view: read-only, updates live as the scorer records points. */
@@ -24,6 +26,7 @@ export function PublicMatch({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <Scoreboard match={m} state={state!} />
+          <p className="-mt-2 text-xs text-muted">Rules: {describeRules(state!.rules, SPORTS[m.sport].setLabel)}</p>
 
           {m.status === "closed" && isCorrected(m) && (
             <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">Result corrected by the organiser after the match.</p>

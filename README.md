@@ -6,6 +6,8 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 ## What it does
 
 - Create a match (singles / doubles / team) with standard rules pre-filled and editable
+- Scorer sets the rules before the start and can change them at any time during the match
+  (e.g. shorter games because of weather); changes apply from the current set and are announced
 - Point-by-point scoring with big `+1` buttons
 - Optional "how" (shot type) and "who" (player / jersey) prompts after each point, switchable mid-match
 - Auto-generated live commentary, game/set point, match point and result lines
@@ -38,6 +40,7 @@ To try it on a phone on the same Wi-Fi: `npm run dev -- -H 0.0.0.0` and open `ht
 | `src/lib/rally/engine.ts` | Replays the point log into sets, winner, set/match point |
 | `src/lib/rally/mutations.ts` | Add point, undo, close, re-open, post-close edits (pure functions) |
 | `src/lib/rally/commentary.ts` | Commentary generation from the point log |
+| `src/lib/rally/rules.ts` | Rule validation and descriptions |
 | `src/lib/rally/sports.ts` | Sport configurations: rules and default shot types |
 | `src/lib/store.ts` | Prototype storage (to be replaced by Supabase) |
 | `src/app/matches/[id]/score` | Scorer screen |

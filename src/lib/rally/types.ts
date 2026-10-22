@@ -73,7 +73,7 @@ export interface ScoreEvent {
   deletedAt?: string;
 }
 
-export type AuditKind = "close" | "reopen" | "edit" | "insert" | "delete";
+export type AuditKind = "close" | "reopen" | "edit" | "insert" | "delete" | "rules";
 
 export interface AuditEntry {
   id: string;
@@ -82,6 +82,15 @@ export interface AuditEntry {
   kind: AuditKind;
   eventId?: string;
   summary: string;
+}
+
+/** A change of rules during a match. Applies from `fromSet` (0-based) onwards. */
+export interface RuleChange {
+  id: string;
+  fromSet: number;
+  rules: RallyRules;
+  at: string;
+  by: string;
 }
 
 export interface DetailSettings {
@@ -96,7 +105,10 @@ export interface Match {
   venue: string;
   livestreamUrl: string;
   format: MatchFormat;
+  /** Rules the match started with (editable until the match starts). */
   rules: RallyRules;
+  /** Rule changes made while the match was live (e.g. shortened sets due to weather). */
+  ruleChanges: RuleChange[];
   actions: ActionDef[];
   settings: DetailSettings;
   sides: Record<SideKey, Side>;

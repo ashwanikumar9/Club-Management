@@ -6,9 +6,11 @@ import { CommentaryFeed, MatchGate, Scoreboard, matchSubtitle, sideBg, useMatchV
 import { Sheet } from "@/components/Sheet";
 import { describePoint, playerName } from "@/lib/rally/commentary";
 import { other, type MatchState } from "@/lib/rally/engine";
-import { addPoint, closeMatch, setLatestPointDetail, startMatch, undoLast, updateSettings } from "@/lib/rally/mutations";
+import { RulesFields } from "@/components/RulesFields";
+import { addPoint, changeRules, closeMatch, setLatestPointDetail, startMatch, undoLast, updateSettings } from "@/lib/rally/mutations";
+import { describeRules } from "@/lib/rally/rules";
 import { SPORTS } from "@/lib/rally/sports";
-import type { ActionCredit, Match, SideKey } from "@/lib/rally/types";
+import type { ActionCredit, Match, RallyRules, SideKey } from "@/lib/rally/types";
 import { updateMatch, useRole } from "@/lib/store";
 
 type Pending = { eventId: string; side: SideKey; step: "how" | "who"; credit: ActionCredit };
@@ -86,6 +88,7 @@ function Scorer({
       <div className="space-y-4">
         <Header match={match} />
         <Scoreboard match={match} state={state} />
+        <RulesPanel match={match} state={state} by={by} />
         <button
           type="button"
           onClick={() => run(startMatch)}
@@ -127,6 +130,7 @@ function Scorer({
     <div className="space-y-3 pb-6">
       <Header match={match} />
       <Scoreboard match={match} state={state} compact />
+      <RulesPanel match={match} state={state} by={by} />
 
       {error && (
         <button type="button" onClick={() => setError(null)} className="w-full rounded-lg bg-danger/10 px-3 py-2 text-left text-sm text-danger">
@@ -278,6 +282,75 @@ function Scorer({
         </Sheet>
       )}
     </div>
+  );
+}
+
+/**
+ * Rules in force, editable by the scorer: before the start (e.g. local format or weather) and at any
+ * time during the match. Live changes apply from the current set onwards.
+ */
+function RulesPanel({ match, state, by }: { match: Match; state: MatchState; by: string }) {
+  const [draft, setDraft] = useState<RallyRules | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const sport = SPORTS[match.sport];
+  const label = sport.setLabel;
+  const live = match.status === "live";
+  const current = state.currentSet + 1;
+
+  function save() {
+    if (!draft) return;
+    const err = updateMatch(match.id, (m) => changeRules(m, draft, by));
+    setError(err);
+    if (!err) setDraft(null);
+  }
+
+  return (
+    <>
+      <div
+        className={`flex items-center gap-3 rounded-xl border border-border bg-surface px-4 ${live ? "py-2" : "py-3"}`}
+      >
+        <div className="min-w-0 flex-1">
+          {!live && <p className="text-sm font-semibold">Match rules</p>}
+          <p className="text-xs text-muted">{describeRules(state.rules, label)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setDraft({ ...state.rules });
+          }}
+          className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm font-medium"
+        >
+          {live ? "Change" : "Edit rules"}
+        </button>
+      </div>
+      {draft && (
+        <Sheet title={live ? "Change rules during the match" : "Match rules"} onClose={() => setDraft(null)}>
+          <p className="mb-3 text-sm text-muted">
+            {live
+              ? `New rules apply to ${label.toLowerCase()} ${current} (in progress) and every later ${label.toLowerCase()}. Finished ${label.toLowerCase()}s keep their scores.`
+              : "Set the rules for this match, e.g. a local points format or shorter games because of the weather. You can still change them during the match."}
+          </p>
+          <RulesFields rules={draft} setLabel={label} onChange={setDraft} />
+          <button
+            type="button"
+            onClick={() => setDraft({ ...SPORTS[match.sport].rules })}
+            className="mt-3 text-sm text-muted underline"
+          >
+            Use standard {sport.name} rules
+          </button>
+          {error && <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setDraft(null)} className="rounded-xl border border-border py-3 font-medium">
+              Cancel
+            </button>
+            <button type="button" onClick={save} className="rounded-xl bg-foreground py-3 font-bold text-background">
+              Save rules
+            </button>
+          </div>
+        </Sheet>
+      )}
+    </>
   );
 }
 

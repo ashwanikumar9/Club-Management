@@ -18,6 +18,7 @@ Goals:
 
 Prototype scope:
 - Rally scoring engine with per-sport configuration (points per set, best of, win by 2, cap, deciding set)
+- Rules set by the scorer before the start and changeable at any time during the match
 - Scorer screen, public match screen, commentary feed, match summary
 - Customisable "how" action catalogue per sport, ask-how / ask-who toggles
 - Undo until close; post-close editing by organiser/admin
@@ -226,6 +227,17 @@ Scorer taps **+1** on the side that won the rally, then optionally picks **how**
 | Point cap | 30 | none | none |
 | Deciding set points | 21 | 11 | 15 |
 
+**Rules are set by the scorer and can change at any time.** Grassroots events often use their own
+points formats, and weather or time can force shorter sets, so:
+- Sport templates only pre-fill the rules; the organiser sets them when creating the match
+- The scorer confirms or edits the rules before pressing Start
+- During the match the scorer (or organiser) can change any rule; the change applies to the set in
+  progress and all later sets, while finished sets keep the scores they were played under
+- A change that would instantly end the current set or the match is refused (the deciding point must be scored)
+- Every change is recorded in the change log and announced in the commentary
+  (e.g. "Rules changed from Game 2: Games to 15 · win by 2 · best of 3"); the public page shows the rules in force
+- Rules cannot be changed after the match is closed (the organiser can re-open it)
+
 **Tennis** uses the same rally scoring input, with its own point → game → set → match rules:
 | Setting | Default |
 |---|---|
@@ -401,7 +413,8 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 - `team_members` (team, participant, jersey_number)
 - `entries` (category ↔ team or individual participant registered in that sport)
 - `stages` / `groups` (group stage, knockout rounds, heats)
-- `matches` (fixture, venue, start time, status, closed_at, closed_by, livestream_url, detail settings, version)
+- `rule_changes` (match, from_set, rules JSON, at, by) — rules changed during a match
+- `matches` (fixture, venue, start time, status, rules JSON, closed_at, closed_by, livestream_url, detail settings, version)
 - `match_sides` (team/participant per side or lane)
 - `score_events` (match, side, points, action_key, actor_id, related_id, period, clock, meta JSON,
   score_after, note, created_by, undone_at, undone_by, version)

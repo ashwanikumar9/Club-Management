@@ -1,5 +1,6 @@
-import { activeEvents, computeState } from "./engine";
+import { activeEvents, matchState } from "./engine";
 import { describePoint } from "./commentary";
+import { describeRules, validateRules } from "./rules";
 import { SPORTS } from "./sports";
 import type {
   ActionDef,
@@ -50,6 +51,7 @@ export function createMatch(input: NewMatchInput): Match {
     livestreamUrl: input.livestreamUrl.trim(),
     format: input.format,
     rules: { ...input.rules },
+    ruleChanges: [],
     actions: structuredClone(sport.actions),
     settings: { askHow: true, askWho: input.format !== "singles" },
     sides: { A: toSide("A"), B: toSide("B") },
@@ -81,7 +83,7 @@ export function startMatch(match: Match): Match {
 
 export function addPoint(match: Match, side: SideKey, by: string): { match: Match; event: ScoreEvent } {
   requireLive(match);
-  if (computeState(match.events, match.rules).winner) {
+  if (matchState(match).winner) {
     throw new MutationError("The match is already decided. Close the match or undo the last point.");
   }
   const lastOrder = match.events.reduce((max, e) => Math.max(max, e.order), 0);
@@ -147,7 +149,7 @@ export function undoLast(match: Match, expectedEventId: string, by: string): Mat
 
 export function closeMatch(match: Match, by: string): Match {
   requireLive(match);
-  const state = computeState(match.events, match.rules);
+  const state = matchState(match);
   const result = state.winner
     ? `${match.sides[state.winner].name} won ${state.setsWon[state.winner]}–${state.setsWon[state.winner === "A" ? "B" : "A"]}`
     : "no result";
@@ -205,6 +207,42 @@ export function deletePoint(match: Match, role: Role, by: string, eventId: strin
   if (!event) throw new MutationError("Point not found.");
   const updated = { ...match, events: match.events.map((e) => (e.id === eventId ? { ...e, deletedAt: now() } : e)) };
   return audit(updated, "delete", by, `Deleted point: ${summarise(match, event)}`, eventId);
+}
+
+/**
+ * Changes the scoring rules. Before the start this replaces the starting rules. While live the new
+ * rules apply from the current set onwards; finished sets keep the rules they were played under.
+ * A change that would instantly end the current set or the match is refused, since the scorer should
+ * record the deciding point themselves.
+ */
+export function changeRules(match: Match, rules: RallyRules, by: string): Match {
+  const invalid = validateRules(rules);
+  if (invalid) throw new MutationError(invalid);
+  if (match.status === "closed") throw new MutationError("Rules cannot be changed after the match is closed.");
+  if (match.status === "scheduled") return { ...match, rules: { ...rules } };
+
+  const before = matchState(match);
+  const fromSet = before.currentSet;
+  if (fromSet + 1 > rules.bestOf) {
+    throw new MutationError(`'Best of' cannot be lower than the ${fromSet + 1} ${SPORTS[match.sport].setLabel.toLowerCase()}s already reached.`);
+  }
+  const ruleChanges = [
+    ...(match.ruleChanges ?? []).filter((c) => c.fromSet !== fromSet),
+    { id: newId(), fromSet, rules: { ...rules }, at: now(), by },
+  ];
+  const updated = { ...match, ruleChanges };
+  const after = matchState(updated);
+  const finished = (s: typeof before) => s.sets.filter((x) => x.winner).length;
+  const unit = SPORTS[match.sport].setLabel.toLowerCase();
+  if (finished(after) !== finished(before)) {
+    const score = `${before.sets[fromSet].A}–${before.sets[fromSet].B}`;
+    throw new MutationError(`These rules would end the current ${unit} immediately at ${score}. Choose a higher target.`);
+  }
+  if (after.winner !== before.winner) {
+    throw new MutationError(`These rules would end the match immediately. Choose a higher 'best of'.`);
+  }
+  const label = SPORTS[match.sport].setLabel;
+  return audit(updated, "rules", by, `Rules changed from ${label} ${fromSet + 1}: ${describeRules(rules, label)}`);
 }
 
 export function updateSettings(match: Match, settings: Partial<DetailSettings>): Match {

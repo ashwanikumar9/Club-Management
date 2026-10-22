@@ -1,4 +1,7 @@
-import type { RallyRules, ScoreEvent, SideKey } from "./types";
+import type { Match, RallyRules, ScoreEvent, SideKey } from "./types";
+
+/** Rules can change during a match, so the engine asks for the rules of each set. */
+export type RulesForSet = (setIndex: number) => RallyRules;
 
 export interface SetScore {
   A: number;
@@ -33,6 +36,8 @@ export interface MatchState {
   points: PointResult[];
   setPoint: SideKey | null;
   matchPoint: SideKey | null;
+  /** Rules in force for the current set. */
+  rules: RallyRules;
 }
 
 export const other = (side: SideKey): SideKey => (side === "A" ? "B" : "A");
@@ -72,9 +77,23 @@ function pointHolder(
   return { setPoint: null, matchPoint: null };
 }
 
+/** Resolves the rules for each set from the starting rules and any changes made during the match. */
+export function rulesResolver(match: Pick<Match, "rules" | "ruleChanges">): RulesForSet {
+  const changes = [...(match.ruleChanges ?? [])].sort((a, b) => a.fromSet - b.fromSet);
+  return (setIndex) => {
+    let rules = match.rules;
+    for (const change of changes) if (change.fromSet <= setIndex) rules = change.rules;
+    return rules;
+  };
+}
+
+export function matchState(match: Match): MatchState {
+  return computeState(match.events, rulesResolver(match));
+}
+
 /** Replays the event log and derives the full match state. The log is the single source of truth. */
-export function computeState(events: ScoreEvent[], rules: RallyRules): MatchState {
-  const toWin = setsToWin(rules);
+export function computeState(events: ScoreEvent[], rulesInput: RallyRules | RulesForSet): MatchState {
+  const rulesFor: RulesForSet = typeof rulesInput === "function" ? rulesInput : () => rulesInput;
   const sets: SetScore[] = [{ A: 0, B: 0, winner: null }];
   const setsWon = { A: 0, B: 0 };
   let winner: SideKey | null = null;
@@ -98,6 +117,7 @@ export function computeState(events: ScoreEvent[], rules: RallyRules): MatchStat
       continue;
     }
 
+    const rules = rulesFor(setIndex);
     const set = sets[setIndex];
     set[event.side] += event.points;
     let setWon: SideKey | null = null;
@@ -107,7 +127,7 @@ export function computeState(events: ScoreEvent[], rules: RallyRules): MatchStat
       set.winner = event.side;
       setWon = event.side;
       setsWon[event.side] += 1;
-      if (setsWon[event.side] === toWin) {
+      if (setsWon[event.side] >= setsToWin(rules)) {
         winner = event.side;
         matchWon = event.side;
       }
@@ -130,6 +150,7 @@ export function computeState(events: ScoreEvent[], rules: RallyRules): MatchStat
   }
 
   const currentSet = sets.length - 1;
+  const rules = rulesFor(currentSet);
   const holder = winner
     ? { setPoint: null, matchPoint: null }
     : pointHolder(sets[currentSet], currentSet, setsWon, rules);
@@ -138,10 +159,11 @@ export function computeState(events: ScoreEvent[], rules: RallyRules): MatchStat
     sets,
     currentSet,
     setsWon,
-    setsToWin: toWin,
+    setsToWin: setsToWin(rules),
     winner,
     points,
     setPoint: holder.setPoint,
     matchPoint: holder.matchPoint,
+    rules,
   };
 }

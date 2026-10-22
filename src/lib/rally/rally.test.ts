@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildCommentary } from "./commentary";
-import { computeState } from "./engine";
+import { matchState } from "./engine";
 import {
   addPoint,
+  changeRules,
   closeMatch,
   createMatch,
   deletePoint,
@@ -40,7 +41,7 @@ function score(match: Match, sequence: string): Match {
   return m;
 }
 
-const state = (m: Match) => computeState(m.events, m.rules);
+const state = (m: Match) => matchState(m);
 
 describe("rally engine", () => {
   it("wins a badminton game at 21 with a 2 point lead", () => {
@@ -165,5 +166,59 @@ describe("point detail and commentary", () => {
     expect(texts).toContain("Game 1 to Riya, 21–0. Games: 1–0");
     expect(texts).toContain("Match point, Riya!");
     expect(texts.at(-1)).toBe("Riya wins the match 2–0 (21–0, 21–0)");
+  });
+});
+
+describe("changing rules", () => {
+  const rules = SPORTS.badminton.rules;
+
+  it("lets the scorer set the rules before the start", () => {
+    const scheduled = createMatch({
+      sport: "badminton",
+      title: "",
+      venue: "",
+      livestreamUrl: "",
+      format: "singles",
+      rules,
+      sides: { A: { name: "Riya", players: [] }, B: { name: "Asha", players: [] } },
+    });
+    const m = changeRules(scheduled, { ...rules, pointsPerSet: 15, decidingSetPoints: 15, cap: null }, "scorer");
+    expect(m.rules.pointsPerSet).toBe(15);
+    expect(m.ruleChanges).toEqual([]);
+  });
+
+  it("applies a live change from the current set and keeps finished sets", () => {
+    let m = score(newMatch(), "A".repeat(21) + "AB".repeat(5)); // game 1 won 21-0, game 2 at 5-5
+    m = changeRules(m, { ...rules, pointsPerSet: 11, decidingSetPoints: 11, cap: 15 }, "scorer");
+    expect(state(m).sets[0]).toEqual({ A: 21, B: 0, winner: "A" });
+    m = score(m, "AAAAA");
+    expect(state(m).sets[1]).toEqual({ A: 10, B: 5, winner: null });
+    m = score(m, "A");
+    expect(state(m).winner).toBe("A");
+    expect(m.history.at(-1)?.kind).toBe("rules");
+    const texts = buildCommentary(m, state(m)).map((l) => l.text);
+    expect(texts).toContain("Rules changed from Game 2: Games to 11 · win by 2 · cap 15 · best of 3");
+  });
+
+  it("refuses a change that would end the current set or match instantly", () => {
+    const m = score(newMatch(), "A".repeat(12) + "B".repeat(3)); // 12-3
+    expect(() => changeRules(m, { ...rules, pointsPerSet: 11, decidingSetPoints: 11, cap: null }, "s")).toThrow(/end the current game immediately at 12–3/);
+    const oneGame = score(newMatch(), "A".repeat(21));
+    expect(() => changeRules(oneGame, { ...rules, bestOf: 1 }, "s")).toThrow(MutationError);
+  });
+
+  it("validates rules and blocks changes after close", () => {
+    const m = newMatch();
+    expect(() => changeRules(m, { ...rules, bestOf: 4 }, "s")).toThrow(/odd/);
+    expect(() => changeRules(m, { ...rules, cap: 10 }, "s")).toThrow(/cap/);
+    expect(() => changeRules(closeMatch(m, "s"), rules, "s")).toThrow(/closed/);
+  });
+
+  it("can extend a match with a higher best of", () => {
+    let m = score(newMatch(), "A".repeat(21) + "B".repeat(21) + "A".repeat(3));
+    m = changeRules(m, { ...rules, bestOf: 5 }, "s");
+    m = score(m, "A".repeat(18));
+    expect(state(m).winner).toBeNull(); // 2-1 in a best of 5
+    expect(state(m).currentSet).toBe(3);
   });
 });

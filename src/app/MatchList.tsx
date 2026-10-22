@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Scoreboard, matchSubtitle } from "@/components/match-ui";
 import { demoMatches } from "@/lib/demo";
-import { computeState } from "@/lib/rally/engine";
+import { matchState } from "@/lib/rally/engine";
 import type { Match, MatchStatus } from "@/lib/rally/types";
 import { saveMatch, useMatches } from "@/lib/store";
 
@@ -14,7 +14,7 @@ const GROUPS: { status: MatchStatus; title: string }[] = [
 ];
 
 function MatchCard({ match }: { match: Match }) {
-  const state = computeState(match.events, match.rules);
+  const state = matchState(match);
   return (
     <li className="space-y-2">
       <Link href={`/matches/${match.id}`} className="block">

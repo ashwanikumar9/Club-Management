@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { RulesFields } from "@/components/RulesFields";
 import { createMatch } from "@/lib/rally/mutations";
+import { validateRules } from "@/lib/rally/rules";
 import { FORMAT_LABELS, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
 import type { MatchFormat, RallyRules, SideKey, SportKey } from "@/lib/rally/types";
 import { saveMatch } from "@/lib/store";
@@ -74,11 +76,6 @@ export function NewMatchForm() {
     updateSide(side, { players });
   }
 
-  function setRule<K extends keyof RallyRules>(key: K, value: string) {
-    const parsed = value === "" ? null : Number(value);
-    setRules((prev) => ({ ...prev, [key]: key === "cap" ? parsed : (parsed ?? 0) }));
-  }
-
   function submit() {
     const names = (side: SideKey) =>
       format === "singles" ? sides[side].players[0].name.trim() : sides[side].name.trim();
@@ -86,12 +83,9 @@ export function NewMatchForm() {
       setError(format === "singles" ? "Enter both players' names." : "Enter both team names.");
       return;
     }
-    if (rules.pointsPerSet < 1 || rules.decidingSetPoints < 1 || rules.bestOf < 1 || rules.bestOf % 2 === 0) {
-      setError("Points must be positive and 'best of' must be an odd number.");
-      return;
-    }
-    if (rules.winBy < 1) {
-      setError("'Win by' must be at least 1.");
+    const invalidRules = validateRules(rules);
+    if (invalidRules) {
+      setError(invalidRules);
       return;
     }
     const sideInput = (side: SideKey) => ({ name: names(side), players: sides[side].players });
@@ -205,29 +199,8 @@ export function NewMatchForm() {
 
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-semibold">Rules</h2>
-        <p className="text-xs text-muted">Pre-filled with standard {config.name} rules. Change anything you need.</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Field label={`Points per ${config.setLabel.toLowerCase()}`}>
-            <input type="number" min={1} value={rules.pointsPerSet} onChange={(e) => setRule("pointsPerSet", e.target.value)} />
-          </Field>
-          <Field label="Best of">
-            <input type="number" min={1} step={2} value={rules.bestOf} onChange={(e) => setRule("bestOf", e.target.value)} />
-          </Field>
-          <Field label="Win by">
-            <input type="number" min={1} value={rules.winBy} onChange={(e) => setRule("winBy", e.target.value)} />
-          </Field>
-          <Field label="Point cap" hint="Blank = no cap">
-            <input type="number" min={1} value={rules.cap ?? ""} onChange={(e) => setRule("cap", e.target.value)} />
-          </Field>
-          <Field label={`Deciding ${config.setLabel.toLowerCase()} points`}>
-            <input
-              type="number"
-              min={1}
-              value={rules.decidingSetPoints}
-              onChange={(e) => setRule("decidingSetPoints", e.target.value)}
-            />
-          </Field>
-        </div>
+        <p className="text-xs text-muted">Pre-filled with standard {config.name} rules. The scorer can still change them before the start and during the match.</p>
+        <RulesFields rules={rules} setLabel={config.setLabel} onChange={setRules} />
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
