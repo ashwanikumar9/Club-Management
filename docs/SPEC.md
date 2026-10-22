@@ -32,19 +32,19 @@ commentary feed, results, standings and the overall medal table. All results are
 ### Sports in Version 1
 | Sport | Scoring model |
 |---|---|
-| Badminton | Sets / rally |
-| Table Tennis | Sets / rally |
-| Volleyball | Sets / rally |
+| Badminton | Rally |
+| Tennis | Rally |
+| Table Tennis | Rally |
+| Volleyball | Rally |
+| Basketball | Multi-value points |
 | Football | Timed points |
 | Kabaddi | Timed points |
 | Chess | Result only |
 | Athletics | Ranked performance |
-| Any other sport | Custom sport on any model, or manual medal entry |
-
-Basketball is provided as a **timed points template** (configuration only, no extra engine work).
+| Any other sport | Custom sport on any family, or manual medal entry |
 
 ### Not in Version 1 (planned later)
-- Cricket (next after V1)
+- Cricket (next after V1, dedicated engine — see 8.6)
 - Player and team statistics dashboards (built from the same scoring data)
 - Judged-sport model
 - Offline scoring
@@ -172,9 +172,28 @@ Organisers can add, rename, hide or re-point actions **at any time, including mi
 - Public match page shows the commentary feed live, newest first
 - Organiser/scorer can add a free-text note to any entry (e.g. "Spectacular rally of 40 shots")
 
-## 8. Scoring Models & Default Templates
+## 8. Scoring Families & Sport Configurations
 
-### 8.1 Sets / rally — Badminton, Table Tennis, Volleyball
+Sports are grouped into **scoring families**. Each family has its own scoring engine (how points
+turn into games, sets, periods and a winner, and which buttons the scorer sees). Each sport is a
+**configuration** on top of its family: its own rules, buttons, action catalogue and commentary.
+Configurations differ per sport and every value can be changed by the organiser.
+
+| Family | How points are scored | Sports |
+|---|---|---|
+| **Rally (point-by-point)** | Every rally is won by one side for exactly 1 point; optional "how" (shot type) | Badminton, Tennis, Table Tennis, Volleyball |
+| **Multi-value points** | Points come in 1, 2 or 3; scorer picks who scored | Basketball |
+| **Timed points** | Points/goals within timed periods, sport-specific actions | Football, Kabaddi |
+| **Result only** | Only the match result is recorded | Chess |
+| **Ranked performance** | Each participant gets a time / distance / height, then ranked | Athletics |
+| **Cricket** | Completely different: ball-by-ball, innings, overs, wickets | Cricket (dedicated engine, after V1) |
+
+Engines are pluggable, so a new family (like cricket) is added as a new engine without changing the others.
+
+### 8.1 Rally family — Badminton, Tennis, Table Tennis, Volleyball
+Scorer taps **+1** on the side that won the rally, then optionally picks **how** it was won.
+
+**Rules configuration**
 | Setting | Badminton | Table Tennis | Volleyball |
 |---|---|---|---|
 | Points per set/game | 21 | 11 | 25 |
@@ -183,22 +202,44 @@ Organisers can add, rename, hide or re-point actions **at any time, including mi
 | Point cap | 30 | none | none |
 | Deciding set points | 21 | 11 | 15 |
 
-Automatic: set completion, match completion, side switch reminder, server tracking (optional).
+**Tennis** uses the same rally scoring input, with its own point → game → set → match rules:
+| Setting | Default |
+|---|---|
+| Point display | 0 / 15 / 30 / 40 / game |
+| Deuce | Advantage (or no-ad / sudden-death deuce) |
+| Games per set | 6, win by 2 |
+| Tie-break | At 6–6, first to 7 points, win by 2 |
+| Best of | 3 sets (or 5) |
+| Final set | Normal set / tie-break / match tie-break to 10 |
+
+Automatic: game/set completion, match completion, side switch reminder, server tracking (optional).
 Supports singles / doubles / team.
 
-**Default actions**
-| Badminton | Table Tennis | Volleyball |
-|---|---|---|
-| Smash | Smash | Attack / spike kill |
-| Drop shot | Loop / topspin winner | Block |
-| Net shot | Push / chop winner | Service ace |
-| Clear / drive winner | Serve ace | Tip / dump |
-| Opponent misjudged (left it in) | Edge / net ball | Opponent attack error |
-| Opponent error — net | Opponent error — net | Opponent service error |
-| Opponent error — out | Opponent error — out | Opponent net touch / fault |
-| Service fault by opponent | Service fault by opponent | Rotation fault |
+**Default actions ("how")**
+| Badminton | Tennis | Table Tennis | Volleyball |
+|---|---|---|---|
+| Great smash | Ace | Smash | Attack / spike kill |
+| Delicate / perfect drop | Forehand winner | Loop / topspin winner | Block |
+| Net shot | Backhand winner | Push / chop winner | Service ace |
+| Clear / drive winner | Volley / overhead winner | Serve ace | Tip / dump |
+| Opponent misjudged (left it in) | Drop shot winner | Edge / net ball | Opponent attack error |
+| Opponent error — into the net | Opponent error — net | Opponent error — net | Opponent service error |
+| Opponent error — outside the line | Opponent error — out | Opponent error — out | Opponent net touch / fault |
+| Service fault by opponent | Double fault by opponent | Service fault by opponent | Rotation fault |
 
-### 8.2 Timed points — Football, Kabaddi (+ Basketball template)
+### 8.2 Multi-value points family — Basketball
+4 quarters × 10 min (editable). Points and scorer only — no "how" prompt;
+the button pressed (`+1`, `+2`, `+3`) is the shot type, then the scorer picks **who** scored.
+| Button | Points | Asks |
+|---|---|---|
+| Free throw | +1 | Scorer (name / jersey) |
+| Two-pointer | +2 | Scorer (name / jersey) |
+| Three-pointer | +3 | Scorer (name / jersey) |
+
+Commentary: `"#{jersey} {actor} scores a two-pointer"` / `"... a three-pointer!"`.
+Match clock, quarters, optional overtime.
+
+### 8.3 Timed points family — Football, Kabaddi
 Common: match clock (start / pause / resume), period control, draw allowed or tie-break required (configurable).
 
 **Football:** 2 halves × 45 min (editable), optional extra time and penalty shootout.
@@ -222,22 +263,12 @@ Common: match clock (start / pause / resume), period control, draw allowed or ti
 | Empty raid | 0 | Raider |
 | Do-or-die raid (flag) | — | Raider |
 
-**Basketball (template):** 4 quarters × 10 min. Points and scorer only — no "how" prompt;
-the button pressed (`+1`, `+2`, `+3`) defines the shot type.
-| Button | Points | Asks |
-|---|---|---|
-| Free throw | +1 | Scorer (name / jersey) |
-| Two-pointer | +2 | Scorer (name / jersey) |
-| Three-pointer | +3 | Scorer (name / jersey) |
-
-Commentary: `"#{jersey} {actor} scores a two-pointer"` / `"... a three-pointer!"`.
-
-### 8.3 Result only — Chess
+### 8.4 Result only family — Chess
 Win / Draw / Loss (1 – ½ – 0 by default, configurable). Formats: knockout, round-robin (Swiss later).
 Result reason (optional): checkmate, resignation, time, stalemate, draw by agreement, repetition.
 Optional tiebreak entry (rapid / armageddon). Commentary: "{white} beats {black} by checkmate".
 
-### 8.4 Ranked performance — Athletics
+### 8.5 Ranked performance family — Athletics
 - Track (time, lower is better) and field (distance / height, higher is better)
 - Heats → final; configurable number qualifying from heats
 - Scorer enters each participant's mark; ranking is automatic
@@ -245,9 +276,17 @@ Optional tiebreak entry (rapid / armageddon). Commentary: "{white} beats {black}
 - Top 3 in the final become gold / silver / bronze automatically
 - Commentary: "{athlete} clocks 11.24s and takes the lead", "{athlete} sets a new meet record"
 
-### 8.5 Custom sport
-Organiser names any sport, picks a model, and builds its action catalogue
-(e.g. Kho-Kho → timed points with "Tag", "Dive" actions).
+### 8.6 Cricket family (after V1 — dedicated engine)
+Cricket does not fit any other family and gets its own engine and scoring screen:
+- Ball-by-ball entry: runs (0–6), extras (wide, no-ball, bye, leg-bye), wickets (type, fielder)
+- Striker / non-striker / bowler tracking, overs, innings, target, required run rate
+- Configurable overs, players per side, powerplays, super over
+- Commentary like "Bowler to Batter, FOUR, driven through covers"
+- Built on the same event log, undo and close rules as every other sport
+
+### 8.7 Custom sport
+Organiser names any sport, picks a family, and builds its configuration and action catalogue
+(e.g. Kho-Kho → timed points with "Tag", "Dive" actions; Throwball → rally).
 
 ## 9. Teams, Organisations, Formats & Standings
 
@@ -329,7 +368,7 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 - `organisers` (auth users), `event_members` (event ↔ user, role: owner | admin)
 - `events` (name, dates, location, livestream_url, medal_table_mode)
 - `venues`
-- `event_sports` (sport, scoring_model, rules_config JSON, format, default detail settings)
+- `event_sports` (sport, scoring_family, rules_config JSON, format, default detail settings)
 - `action_catalogue` (event_sport, key, label, points, asks_actor, asks_related, commentary_templates, enabled, sort)
 - `categories` (e.g. Men's Singles U-19)
 - `organisations` (event, name, short name, logo) — optional grouping for the medal tally
@@ -356,10 +395,10 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 | 1 — Foundation | Next.js + Supabase setup, schema, organiser/admin auth, event / venue / sport setup, organisations, teams & participants per sport, rosters with jersey numbers (incl. CSV) |
 | 2 — Fixtures & access | Knockout, round-robin, groups → knockout generators, manual fixtures, schedule, scorer codes and assignment |
 | 3 — Scoring engine core | Point-by-point event log, Quick mode `+1/+2/+3`, Undo (until close), Close match, post-close admin editing with audit, multi-scorer realtime sync, match lifecycle |
-| 4 — Sport rules | Sets / rally (badminton, table tennis, volleyball), timed points (football, kabaddi, basketball template), result only (chess) — auto set/period/match completion |
+| 4 — Sport rules | Rally family (badminton, tennis, table tennis, volleyball), multi-value points (basketball), timed points (football, kabaddi), result only (chess) — auto game/set/period/match completion |
 | 5 — Detail & commentary | Action catalogues with defaults, how/who bottom sheet, detail toggles mid-match, commentary templates & generator, system commentary, catalogue editor for organisers |
 | 6 — Public live site | Event home, schedule, live match page with commentary feed, realtime updates, livestream links |
 | 7 — Results & standings | League tables, brackets & progression, medal table (auto + manual), archive |
 | 8 — Athletics | Ranked performance, heats → final, auto medals, athletics commentary |
 | 9 — Pilot | Run at a real event, feedback, fixes |
-| Next | Cricket (ball-by-ball with commentary), player/team statistics, notifications, offline scoring, big-screen mode, judged sports |
+| Next | Cricket engine (ball-by-ball with commentary), player/team statistics, notifications, offline scoring, big-screen mode, judged sports |
