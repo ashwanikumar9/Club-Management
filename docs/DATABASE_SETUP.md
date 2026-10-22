@@ -119,8 +119,11 @@ Left sidebar → **Project Settings** (gear icon at the bottom) → **API** or *
 - **Vercel**: Project → Settings → Environment Variables, add
   - `NEXT_PUBLIC_SUPABASE_URL` = the Project URL
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the anon (or publishable) key
+    (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` also works, which is the name Supabase's Vercel integration uses)
 
-  then redeploy.
+  Tick **Production** (and Preview) for both, then **Deployments → ⋯ → Redeploy**: the settings are built into
+  the app, so they only take effect after a new build. The badge next to "Rally Scorer" then reads
+  **● live** instead of **prototype**.
 - **Your computer**: create a file `.env.local` in the project folder with the same two lines
   (`NAME=value`), then restart `npm run dev`.
 

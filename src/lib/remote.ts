@@ -3,11 +3,12 @@
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Supabase connection. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to share data live
+ * Supabase connection. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (or ..._PUBLISHABLE_KEY) to share data live
  * between devices; without them the app runs in prototype mode on browser storage.
  */
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Supabase's Vercel integration names the public key NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY; both work.
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export const remoteEnabled = !!url && !!key;
 

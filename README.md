@@ -71,7 +71,7 @@ npm start -- -H 0.0.0.0   # then open http://<computer-ip>:3000 on the phone
 
 Connect Supabase to share live scores between devices, sign in with a one-time code and enforce who may
 change what. Step-by-step: [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md). The app reads
-`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`; the schema is in `supabase/migrations`.
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`); the schema is in `supabase/migrations`.
 
 ### Prototype mode (no database)
 
