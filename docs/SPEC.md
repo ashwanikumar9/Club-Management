@@ -2,6 +2,29 @@
 
 > Working title: TBD (product name to be chosen later)
 > Status: Agreed blueprint, pre-development
+> **Current focus: Rally Prototype (Volleyball, Badminton, Table Tennis) — see section 0**
+
+## 0. Current Focus: Rally Prototype
+
+Before building the full platform, we build and test a prototype covering **only the rally family**:
+**Volleyball, Badminton and Table Tennis**. They share one scoring engine and are the simplest to build.
+
+Goals:
+- Validate the scorer experience (+1, how-was-it-won panel, undo, close match) at real matches
+- Validate the public match view (live score, set breakdown, commentary feed)
+- Prove the core architecture (point-by-point event log, undo-until-close, commentary generation,
+  sport configuration) so it becomes the template for every other family
+- Produce reusable designs and working components for later versions
+
+Prototype scope:
+- Rally scoring engine with per-sport configuration (points per set, best of, win by 2, cap, deciding set)
+- Scorer screen, public match screen, commentary feed, match summary
+- Customisable "how" action catalogue per sport, ask-how / ask-who toggles
+- Undo until close; post-close editing by organiser/admin
+- Singles, doubles and team sides with player names / jersey numbers
+
+Everything else in this spec (other families, tennis, cricket, full event management, medal tally)
+follows after the prototype is tested, using its designs and components.
 
 ## 1. Vision
 
@@ -33,9 +56,9 @@ commentary feed, results, standings and the overall medal table. All results are
 | Sport | Scoring model |
 |---|---|
 | Badminton | Rally |
-| Tennis | Rally |
 | Table Tennis | Rally |
 | Volleyball | Rally |
+| Tennis | Rally (after prototype; game/deuce/tie-break rules) |
 | Basketball | Multi-value points |
 | Football | Timed points |
 | Kabaddi | Timed points |
@@ -393,6 +416,7 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 | Phase | Deliverable |
 |---|---|
 | 0 | Spec agreed (this document) |
+| P — Rally prototype | Volleyball, badminton, table tennis: rally engine, scorer screen, public match view, commentary, undo/close — tested before the phases below |
 | 1 — Foundation | Next.js + Supabase setup, schema, organiser/admin auth, event / venue / sport setup, organisations, teams & participants per sport, rosters with jersey numbers (incl. CSV) |
 | 2 — Fixtures & access | Knockout, round-robin, groups → knockout generators, manual fixtures, schedule, scorer codes and assignment |
 | 3 — Scoring engine core | Point-by-point event log, Quick mode `+1/+2/+3`, Undo (until close), Close match, post-close admin editing with audit, multi-scorer realtime sync, match lifecycle |
