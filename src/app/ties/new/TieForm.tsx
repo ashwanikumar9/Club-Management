@@ -35,6 +35,8 @@ export function TieForm() {
   const [sport, setSport] = useState<Tie["sport"]>("badminton");
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [teams, setTeams] = useState<Record<SideKey, { name: string; players: Row[] }>>({
     A: { name: "", players: emptyRows(4) },
     B: { name: "", players: emptyRows(4) },
@@ -97,7 +99,7 @@ export function TieForm() {
             : undefined,
         organiser: user!,
       });
-      saveTie(tie);
+      saveTie(date || time ? { ...tie, schedule: { date: date || undefined, time: time || undefined, court: venue.trim() || undefined } } : tie);
       router.push(`/ties/${tie.id}`);
     } catch (e) {
       if (e instanceof MutationError) setError(e.message);
@@ -248,6 +250,10 @@ export function TieForm() {
         <h2 className="font-semibold">Details</h2>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional), e.g. Inter-College Final" aria-label="Title" />
         <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Venue / court" aria-label="Venue" />
+        <div className="grid grid-cols-2 gap-3">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Start time" />
+        </div>
         <h3 className="pt-2 text-sm font-semibold">Match rules</h3>
         <RulesFields rules={rules} setLabel={SPORTS[sport].setLabel} onChange={setRules} />
       </section>

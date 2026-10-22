@@ -9,6 +9,7 @@ import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
 import { tieState } from "@/lib/tie/tie";
 import type { Tie } from "@/lib/tie/types";
 import { champion, type Data } from "@/lib/tournament/engine";
+import { scheduleKey } from "@/lib/tournament/schedule";
 import type { Tournament } from "@/lib/tournament/types";
 import { saveMatch, setUser, useMatches, useTies, useTournaments, useUser } from "@/lib/store";
 
@@ -97,10 +98,14 @@ export function MatchList() {
   const user = useUser();
   if (matches === null || tournaments === null || ties === null) return <p className="py-10 text-center text-muted">Loading…</p>;
   const data = { matches, ties };
-  // Matches inside a team tie are shown on the tie's page.
+  // Matches inside a team tie are shown on the tie's page. Upcoming matches are listed in playing order.
   const all = Object.values(matches)
     .filter((m) => !m.tie)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .sort((a, b) =>
+      a.status === "scheduled" && b.status === "scheduled"
+        ? scheduleKey(a.schedule).localeCompare(scheduleKey(b.schedule)) || b.createdAt.localeCompare(a.createdAt)
+        : b.createdAt.localeCompare(a.createdAt),
+    );
   const tournamentList = Object.values(tournaments).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const tieList = Object.values(ties)
     .filter((x) => !x.tournament)

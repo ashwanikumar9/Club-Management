@@ -413,6 +413,18 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
   5 of 11, volleyball 8 of 15); the scorer is told and the +1 buttons swap to match the court
 - Commentary announces the toss and changes of ends; the scoreboard marks the serving side
 
+### Scheduling
+- Tournaments list their **courts / tables**; every fixture can have a **date, time and court**, and the
+  schedule is copied onto its match or tie
+- **Auto-schedule**: first day, first and last start time, minutes per match, courts and required rest;
+  fills courts slot by slot, never books a player twice in a slot, keeps the rest gap, plays knockout
+  rounds after the matches that decide them, continues on the next day; can keep times already set
+- **Import from a spreadsheet**: paste rows "Team A vs Team B, date, time, court" (Excel / Google Sheets
+  rows work); matched to fixtures by the two names, with clear errors for unknown names or dates
+- **Bulk entries**: paste a list of players, pairs or teams (one per line, optional "| seed")
+- Schedule tab grouped by day with times and courts, per-fixture editing, "Copy schedule as text" for
+  WhatsApp; single matches and team ties take an optional date and start time
+
 ### Retirements, walkovers and no result
 - A match that isn't played to a finish is closed by the scorer (or organiser) with how it ended:
   - **Retired** — one side retired during play; the opponent is awarded the match; the score so far is kept

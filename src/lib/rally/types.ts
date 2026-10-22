@@ -171,6 +171,8 @@ export interface Match {
   /** Latest take-over request (kept after it is decided so the requester sees the outcome). */
   takeoverRequest?: TakeoverRequest;
   tournament?: TournamentLink;
+  /** Planned date, time and court. */
+  schedule?: { date?: string; time?: string; court?: string };
   /** Set for a match that is part of a team tie. */
   tie?: { id: string; index: number; teams: Record<SideKey, string> };
   toss?: Toss;

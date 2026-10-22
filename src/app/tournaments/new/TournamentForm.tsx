@@ -31,6 +31,7 @@ export function TournamentForm() {
   const [win, setWin] = useState("2");
   const [loss, setLoss] = useState("0");
   const [venue, setVenue] = useState("");
+  const [courts, setCourts] = useState("Court 1, Court 2");
   const [startDate, setStartDate] = useState("");
   const [tieMatchCount, setTieMatchCount] = useState(5);
   const [thirdPlace, setThirdPlace] = useState(false);
@@ -70,6 +71,7 @@ export function TournamentForm() {
         points,
         structure,
         thirdPlace: structure !== "league" && thirdPlace,
+        courts: courts.split(",").map((c) => c.trim()).filter(Boolean),
         tieMatchCount,
       });
       saveTournament(t);
@@ -105,6 +107,11 @@ export function TournamentForm() {
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </label>
         </div>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Courts / tables</span>
+          <input value={courts} onChange={(e) => setCourts(e.target.value)} placeholder="Court 1, Court 2" />
+          <span className="mt-1 block text-xs text-muted">Comma separated. Used when scheduling matches; you can change them later.</span>
+        </label>
       </section>
 
       <section className="space-y-3">

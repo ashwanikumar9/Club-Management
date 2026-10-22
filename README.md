@@ -8,6 +8,8 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 - **Tournaments** (CricHeroes-style): league, seeded knockout, or groups → knockout. Add entries and seeds,
   create groups and assign entries manually or automatically by seed, generate fixtures, follow points
   tables and the bracket; winners move on automatically and the champion is shown. Optional third-place match
+- **Scheduling**: courts, date / time / court per fixture, auto-schedule with rest between matches,
+  spreadsheet import, bulk entry lists, a Schedule tab and "copy as text" for sharing
 - **Team ties** (badminton / table tennis): two teams with player lists play 1–9 matches; line-ups are entered in
   advance or picked (singles / doubles and players) as each match starts; the tie stops once a team wins the
   majority, unless the organiser chooses to play all matches. Works standalone and inside tournaments
@@ -78,6 +80,7 @@ change what. Step-by-step: [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md). T
 | `src/lib/tournament/engine.ts` | Round-robin, seeded brackets, groups, points tables, advancement |
 | `src/lib/tournament/mutations.ts` | Tournament setup, fixture generation, knockout start, sync with results |
 | `src/app/tournaments/[id]` | Tournament page: entries, groups / table, fixtures, bracket |
+| `src/lib/tournament/schedule.ts` | Auto-scheduler, schedule import, bulk entries |
 | `src/lib/tie/tie.ts` | Team ties: line-ups, match creation, tie score and winner |
 | `src/app/ties/[id]` | Tie page: team score, matches, line-up picker |
 | `src/lib/identity.ts` | Mobile / email / username parsing and normalisation |

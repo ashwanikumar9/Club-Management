@@ -35,6 +35,7 @@ export interface NewTournamentInput {
   points: PointsConfig;
   structure: Structure;
   thirdPlace?: boolean;
+  courts?: string[];
   /** Matches per tie for badminton / table tennis team events. */
   tieMatchCount?: number;
 }
@@ -62,6 +63,7 @@ export function createTournament(input: NewTournamentInput): Tournament {
     startDate: input.startDate,
     organiser: input.organiser,
     scorers: [],
+    courts: input.courts?.length ? input.courts : ["Court 1"],
     rules: { ...input.rules },
     points: { ...input.points },
     structure: input.structure,
@@ -253,6 +255,7 @@ function matchForFixture(t: Tournament, f: Fixture, a: string, b: string): Match
     ...match,
     sides: { A: { ...match.sides.A, entryId: a }, B: { ...match.sides.B, entryId: b } },
     tournament: { id: t.id, fixtureId: f.id, label },
+    schedule: f.schedule ? { ...f.schedule } : undefined,
   };
 }
 
@@ -271,7 +274,7 @@ function tieForFixture(t: Tournament, f: Fixture, a: string, b: string): Tie {
     organiser: t.organiser,
     scorers: t.scorers,
   });
-  return { ...tie, tournament: { id: t.id, fixtureId: f.id, label } };
+  return { ...tie, tournament: { id: t.id, fixtureId: f.id, label }, schedule: f.schedule ? { ...f.schedule } : undefined };
 }
 
 export interface Created {

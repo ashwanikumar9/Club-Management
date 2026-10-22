@@ -39,6 +39,8 @@ export interface Tie {
   organiser: string;
   scorers: string[];
   tournament?: TournamentLink;
+  /** Planned date, time and court. */
+  schedule?: { date?: string; time?: string; court?: string };
   createdAt: string;
   version: number;
 }

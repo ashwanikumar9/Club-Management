@@ -45,6 +45,8 @@ export function NewMatchForm() {
   const [rules, setRules] = useState<RallyRules>(SPORTS.badminton.rules);
   const [title, setTitle] = useState("");
   const [venue, setVenue] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [livestreamUrl, setLivestreamUrl] = useState("");
   const [sides, setSides] = useState<Record<SideKey, SideForm>>({ A: emptySide("singles"), B: emptySide("singles") });
   const [scorers, setScorers] = useState<string[]>([]);
@@ -106,7 +108,7 @@ export function NewMatchForm() {
       organiser: user,
       scorers,
     });
-    saveMatch(match);
+    saveMatch(date || time ? { ...match, schedule: { date: date || undefined, time: time || undefined, court: venue.trim() || undefined } } : match);
     router.push(`/matches/${match.id}/score`);
   }
 
@@ -271,6 +273,14 @@ export function NewMatchForm() {
         <Field label="Venue / court">
           <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Court 2" />
         </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Date" hint="Optional">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+          <Field label="Start time" hint="Optional">
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </Field>
+        </div>
         <Field label="Livestream link" hint="Optional. Shown as a Watch live button on the public page.">
           <input type="url" value={livestreamUrl} onChange={(e) => setLivestreamUrl(e.target.value)} placeholder="https://" />
         </Field>

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
 import { Bracket, FixtureCard, PointsTable, entryName } from "@/components/tournament/parts";
+import { ScheduleTab } from "@/components/tournament/ScheduleTab";
+import { addEntries, parseBulkEntries } from "@/lib/tournament/schedule";
 import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
 import { describeRules } from "@/lib/rally/rules";
 import { fixtureOutcome, groupStageComplete, podium, type Data } from "@/lib/tournament/engine";
@@ -27,7 +29,7 @@ import type { Tournament } from "@/lib/tournament/types";
 import { runTournamentAction, updateTournament, useMatches, useTies, useTournament, useUser } from "@/lib/store";
 import { STRUCTURES } from "../new/TournamentForm";
 
-type Tab = "entries" | "groups" | "fixtures" | "bracket";
+type Tab = "entries" | "groups" | "fixtures" | "schedule" | "bracket";
 
 export function TournamentView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -56,6 +58,7 @@ function View({ t, data }: { t: Tournament; data: Data }) {
     ...(t.structure !== "knockout" ? [{ key: "groups" as const, label: t.structure === "league" ? "Table" : "Groups" }] : []),
     ...(!setup ? [{ key: "fixtures" as const, label: "Fixtures" }] : []),
     ...(t.structure !== "league" && !setup ? [{ key: "bracket" as const, label: "Bracket" }] : []),
+    ...(!setup ? [{ key: "schedule" as const, label: "Schedule" }] : []),
   ];
   const [tab, setTab] = useState<Tab>(setup ? "entries" : t.structure === "knockout" ? "bracket" : "groups");
   const active = tabs.some((x) => x.key === tab) ? tab : tabs[0].key;
@@ -65,7 +68,11 @@ function View({ t, data }: { t: Tournament; data: Data }) {
     setError(err);
     return err;
   };
-  const edit = (mutate: (x: Tournament) => Tournament) => setError(updateTournament(t.id, mutate));
+  const edit = (mutate: (x: Tournament) => Tournament) => {
+    const err = updateTournament(t.id, mutate);
+    setError(err);
+    return err;
+  };
 
   const top = podium(t, data);
   const sport = SPORTS[t.sport];
@@ -129,6 +136,7 @@ function View({ t, data }: { t: Tournament; data: Data }) {
       {active === "entries" && <EntriesTab t={t} organiser={organiser} edit={edit} user={user ?? ""} />}
       {active === "groups" && <GroupsTab t={t} data={data} organiser={organiser} edit={edit} user={user ?? ""} />}
       {active === "fixtures" && <FixturesTab t={t} data={data} />}
+      {active === "schedule" && <ScheduleTab t={t} data={data} organiser={organiser} user={user ?? ""} />}
       {active === "bracket" && (
         <>
           {t.fixtures.some((f) => f.stage === "knockout") ? (
@@ -314,6 +322,7 @@ function EntriesTab({
       </ul>
 
       {canEdit && <AddEntryForm t={t} edit={edit} user={user} />}
+      {canEdit && <BulkEntries t={t} edit={edit} user={user} />}
 
       {organiser && (
         <section className="rounded-2xl border border-border bg-surface p-4">
@@ -345,6 +354,49 @@ function EntriesTab({
         </section>
       )}
     </div>
+  );
+}
+
+/** Paste a list of entries (one per line), e.g. from a spreadsheet or a WhatsApp message. */
+function BulkEntries({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tournament) => Tournament) => string | null | void; user: string }) {
+  const [text, setText] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
+  const example =
+    t.format === "singles"
+      ? "Riya Sharma | 1\nAsha Verma | 2\nMeera Iyer"
+      : t.format === "doubles"
+        ? "Meera / Karan | 1\nSmashers: Sana / Rahul"
+        : "Eagles: #7 Kiran, #10 Arjun, Vikram | 1\nHawks: Dev, Nikhil, Aman";
+  return (
+    <details className="rounded-2xl border border-dashed border-border p-4">
+      <summary className="cursor-pointer font-semibold">Paste a list</summary>
+      <p className="mt-1 text-xs text-muted">
+        One {t.format === "singles" ? "player" : t.format === "doubles" ? "pair" : "team"} per line; add &ldquo;| 1&rdquo; at the end for a seed.
+        Rows copied from a spreadsheet work too.
+      </p>
+      <textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder={example} aria-label="Entries list" className="mt-2 font-mono text-sm" />
+      {errors.length > 0 && (
+        <ul className="mt-2 list-inside list-disc text-sm text-danger">
+          {errors.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          const parsed = parseBulkEntries(t.format, text);
+          setErrors(parsed.errors);
+          if (parsed.errors.length || parsed.entries.length === 0) return;
+          const err = edit((x) => addEntries(x, user, parsed.entries));
+          if (err) setErrors([err]);
+          else setText("");
+        }}
+        className="mt-2 w-full rounded-xl border border-border py-2.5 font-semibold"
+      >
+        Add all
+      </button>
+    </details>
   );
 }
 

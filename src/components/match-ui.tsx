@@ -5,6 +5,7 @@ import { useMemo, type ReactNode } from "react";
 import { buildCommentary, type CommentaryLine } from "@/lib/rally/commentary";
 import { matchState, type MatchState } from "@/lib/rally/engine";
 import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
+import { formatSchedule } from "@/lib/tournament/schedule";
 import type { Match, SideKey } from "@/lib/rally/types";
 import { useMatch } from "@/lib/store";
 
@@ -54,7 +55,8 @@ export function StatusBadge({ match, state }: { match: Match; state: MatchState 
 
 export function matchSubtitle(match: Match) {
   const sport = SPORTS[match.sport];
-  return [sport.name, FORMAT_LABELS[match.format], match.title, match.venue].filter(Boolean).join(" · ");
+  const when = match.status === "scheduled" && match.schedule ? formatSchedule(match.schedule) : "";
+  return [sport.name, FORMAT_LABELS[match.format], match.title, when || match.venue].filter(Boolean).join(" · ");
 }
 
 export function sidePlayers(match: Match, side: SideKey) {

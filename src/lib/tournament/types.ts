@@ -31,6 +31,13 @@ export type Source =
   | { type: "loser"; fixtureId: string }
   | { type: "bye" };
 
+/** When and where a match is played. Dates are YYYY-MM-DD and times HH:MM (local to the venue). */
+export interface Schedule {
+  date?: string;
+  time?: string;
+  court?: string;
+}
+
 export interface Fixture {
   id: string;
   stage: "group" | "knockout";
@@ -47,6 +54,7 @@ export interface Fixture {
   tieId?: string;
   /** The third-place play-off between the semi-final losers. */
   third?: boolean;
+  schedule?: Schedule;
 }
 
 export interface PointsConfig {
@@ -61,6 +69,8 @@ export interface Tournament {
   format: MatchFormat;
   venue: string;
   startDate: string;
+  /** Courts / tables / grounds matches are played on. */
+  courts: string[];
   organiser: string;
   /** People given scoring access to every match of the tournament. */
   scorers: string[];

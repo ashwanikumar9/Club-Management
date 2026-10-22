@@ -13,6 +13,7 @@ import {
   standings,
   type Data,
 } from "@/lib/tournament/engine";
+import { formatSchedule } from "@/lib/tournament/schedule";
 import type { Fixture, Group, Tournament } from "@/lib/tournament/types";
 
 export const entryName = (t: Tournament, id?: string) => (id ? (t.entries.find((e) => e.id === id)?.name ?? "?") : undefined);
@@ -79,7 +80,20 @@ function signed(n: number) {
 const STATUS_TEXT = { none: "Waiting", scheduled: "Upcoming", live: "Live", closed: "Final" } as const;
 
 /** One fixture: both sides, status and score, linking to the match or tie when it exists. */
-export function FixtureCard({ t, fixture, data, compact = false }: { t: Tournament; fixture: Fixture; data: Data; compact?: boolean }) {
+export function FixtureCard({
+  t,
+  fixture,
+  data,
+  compact = false,
+  showSchedule = true,
+}: {
+  t: Tournament;
+  fixture: Fixture;
+  data: Data;
+  compact?: boolean;
+  /** Off where the time is already shown next to the card (the Schedule tab). */
+  showSchedule?: boolean;
+}) {
   const match = fixture.matchId ? data.matches[fixture.matchId] : undefined;
   const tie = fixture.tieId ? data.ties[fixture.tieId] : undefined;
   const sides = resolveSides(fixture, t.fixtures, data);
@@ -125,15 +139,17 @@ export function FixtureCard({ t, fixture, data, compact = false }: { t: Tourname
     <div className={`space-y-1 rounded-xl border border-border bg-surface ${compact ? "p-2 text-sm" : "p-3"}`}>
       {(!compact || fixture.third) && (
         <div className="mb-1 flex items-center justify-between text-xs text-muted">
-          <span>
+          <span className="min-w-0 truncate">
             {label}
             {tie && !compact ? ` · team tie, best of ${tie.matchCount}` : ""}
+            {!compact && showSchedule && fixture.schedule ? ` · ${formatSchedule(fixture.schedule)}` : ""}
           </span>
           {!compact && <span className={live ? "font-semibold text-live" : ""}>{bye ? "Advances" : STATUS_TEXT[outcome.status]}</span>}
         </div>
       )}
       {row("a", "A")}
       {row("b", "B")}
+      {compact && showSchedule && fixture.schedule && <div className="tabular truncate pt-0.5 text-[11px] text-muted">{formatSchedule(fixture.schedule)}</div>}
     </div>
   );
   return href ? (
