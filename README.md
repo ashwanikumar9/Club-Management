@@ -21,6 +21,14 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 
 ## Run it
 
+Needs Node.js 20.9 or newer (22 LTS recommended). Check your computer first:
+
+```bash
+node scripts/check-env.mjs
+```
+
+Then:
+
 ```bash
 npm install
 npm run dev      # http://localhost:3000
