@@ -24,6 +24,8 @@ interface SideForm {
   players: PlayerRow[];
 }
 
+export const SPORT_ICON: Record<SportKey, string> = { badminton: "🏸", table_tennis: "🏓", volleyball: "🏐" };
+
 const playerCount: Record<MatchFormat, number> = { singles: 1, doubles: 2, team: 6 };
 
 function emptySide(format: MatchFormat): SideForm {
@@ -53,6 +55,7 @@ export function NewMatchForm() {
   const [sides, setSides] = useState<Record<SideKey, SideForm>>({ A: emptySide("singles"), B: emptySide("singles") });
   const [scorers, setScorers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const user = useUser();
 
   const config = SPORTS[sport];
@@ -86,8 +89,7 @@ export function NewMatchForm() {
   }
 
   function submit() {
-    const names = (side: SideKey) =>
-      format === "singles" ? sides[side].players[0].name.trim() : sides[side].name.trim();
+    const names = (side: SideKey) => (format === "singles" ? sides[side].players[0].name.trim() : sides[side].name.trim());
     if (!names("A") || !names("B")) {
       setError(format === "singles" ? "Enter both players' names." : "Enter both team names.");
       return;
@@ -110,7 +112,9 @@ export function NewMatchForm() {
       organiser: user,
       scorers,
     });
-    saveMatch(date || time ? { ...match, schedule: { date: date || undefined, time: time || undefined, court: venue.trim() || undefined } } : match);
+    saveMatch(
+      date || time ? { ...match, schedule: { date: date || undefined, time: time || undefined, court: venue.trim() || undefined } } : match,
+    );
     router.push(`/matches/${match.id}/score`);
   }
 
@@ -128,187 +132,233 @@ export function NewMatchForm() {
       className="space-y-6 pb-10"
       onSubmit={(e) => {
         e.preventDefault();
-        submit();
+        if (step === 3) submit();
       }}
     >
-      <h1 className="text-xl font-bold">New match</h1>
+      <div className="flex items-center gap-3">
+        {step > 1 && (
+          <button
+            type="button"
+            onClick={() => setStep((step - 1) as 1 | 2)}
+            aria-label="Back"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-border"
+          >
+            ←
+          </button>
+        )}
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Step {step} of 3</p>
+          <h1 className="text-xl font-bold">{step === 1 ? "Which sport?" : step === 2 ? `${config.name} match` : "Players"}</h1>
+        </div>
+      </div>
 
-      <section className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
+      {step === 1 && (
+        <section className="grid gap-3">
           {SPORT_LIST.map((s) => (
             <button
               key={s.key}
               type="button"
-              onClick={() => chooseSport(s.key)}
-              className={`rounded-xl border px-2 py-3 text-sm font-semibold ${
-                sport === s.key ? "border-foreground bg-foreground text-background" : "border-border bg-surface"
-              }`}
+              onClick={() => {
+                if (s.key !== sport) chooseSport(s.key);
+                setStep(2);
+              }}
+              className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 text-left active:scale-[0.99]"
             >
-              {s.name}
+              <span className="text-4xl" aria-hidden>
+                {SPORT_ICON[s.key]}
+              </span>
+              <span>
+                <span className="block text-lg font-semibold">{s.name}</span>
+                <span className="block text-sm text-muted">{s.formats.map((f) => FORMAT_LABELS[f]).join(" · ")}</span>
+              </span>
             </button>
           ))}
-        </div>
-        {sportFormats(sport).length > 1 && (
-          <div className="flex gap-2">
-            {sportFormats(sport).map((f) => (
-              <button
-                key={f}
-                type="button"
-                // Badminton / table tennis team events are ties of several matches.
-                onClick={() => (f === "team" && sport !== "volleyball" ? router.push("/ties/new") : chooseFormat(f))}
-                className={`flex-1 rounded-lg border py-2 text-sm ${
-                  format === f ? "border-foreground font-semibold" : "border-border bg-surface text-muted"
-                }`}
-              >
-                {FORMAT_LABELS[f]}
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="grid gap-4 sm:grid-cols-2">
-        {(["A", "B"] as const).map((side) => (
-          <div key={side} className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-            <div className={`text-sm font-bold ${side === "A" ? "text-side-a" : "text-side-b"}`}>Side {side}</div>
-            {format === "singles" ? (
-              <Field label="Player name">
-                <div className="flex gap-2">
-                  <input
-                    value={sides[side].players[0]?.name ?? ""}
-                    onChange={(e) => updatePlayer(side, 0, { name: e.target.value })}
-                    placeholder={side === "A" ? "e.g. Riya Sharma" : "e.g. Asha Verma"}
-                  />
-                  <CardPicker
-                    name={sides[side].players[0]?.name ?? ""}
-                    cardId={sides[side].players[0]?.cardId}
-                    sport={sport}
-                    onPick={(p) => updatePlayer(side, 0, p)}
-                    onUnlink={() => updatePlayer(side, 0, { cardId: undefined })}
-                  />
-                </div>
-              </Field>
-            ) : (
-              <>
-                <Field label={format === "doubles" ? "Pair name" : "Team name"}>
-                  <input
-                    value={sides[side].name}
-                    onChange={(e) => updateSide(side, { name: e.target.value })}
-                    placeholder={format === "doubles" ? "e.g. Meera / Karan" : "e.g. Eagles"}
-                  />
-                </Field>
-                <div>
-                  <span className="mb-1 block text-sm font-medium">Players</span>
-                  <div className="space-y-2">
-                    {sides[side].players.map((p, i) => (
-                      <div key={i} className="flex gap-2">
-                        <input
-                          className="!w-16 shrink-0"
-                          value={p.jersey}
-                          onChange={(e) => updatePlayer(side, i, { jersey: e.target.value })}
-                          placeholder="#"
-                          aria-label="Jersey number"
-                          inputMode="numeric"
-                        />
-                        <input
-                          value={p.name}
-                          onChange={(e) => updatePlayer(side, i, { name: e.target.value })}
-                          placeholder={`Player ${i + 1}`}
-                          aria-label="Player name"
-                        />
-                        <CardPicker
-                          name={p.name}
-                          cardId={p.cardId}
-                          sport={sport}
-                          onPick={(picked) => updatePlayer(side, i, picked)}
-                          onUnlink={() => updatePlayer(side, i, { cardId: undefined })}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  {format === "team" && (
-                    <button
-                      type="button"
-                      className="mt-2 text-sm font-medium text-side-a"
-                      onClick={() => updateSide(side, { players: [...sides[side].players, { name: "", jersey: "" }] })}
-                    >
-                      + Add player
-                    </button>
-                  )}
-                  <p className="mt-1 text-xs text-muted">Optional. Used for the &ldquo;who scored&rdquo; prompt.</p>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </section>
-
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Rules</h2>
-        <p className="text-xs text-muted">Pre-filled with standard {config.name} rules. The scorer can still change them before the start and during the match.</p>
-        <RulesFields key={sport} rules={rules} setLabel={config.setLabel} onChange={setRules} sport={sport} />
-      </section>
-
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Scorers</h2>
-        <p className="text-xs text-muted">
-          You ({user}) can always score as organiser. Add people who may score this match; one scores at a time and any of
-          them can take over, e.g. if a phone dies. Scorers can add more people later.
-        </p>
-        {scorers.length > 0 && (
-          <ul className="flex flex-wrap gap-2">
-            {scorers.map((s) => (
-              <li key={s} className="flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-3 pr-1 text-sm">
-                {IDENTITY_ICON[identityKind(s)]} {s}
+      {step === 2 && (
+        <section className="space-y-3">
+          {sportFormats(sport).length > 1 && (
+            <div className="flex gap-2">
+              {sportFormats(sport).map((f) => (
                 <button
+                  key={f}
                   type="button"
-                  aria-label={`Remove ${s}`}
-                  onClick={() => setScorers(scorers.filter((x) => x !== s))}
-                  className="rounded-full px-2 text-muted"
+                  // Badminton / table tennis team events are ties of several matches.
+                  onClick={() => (f === "team" && sport !== "volleyball" ? router.push("/ties/new") : chooseFormat(f))}
+                  className={`flex-1 rounded-lg border py-2 text-sm ${
+                    format === f ? "border-foreground font-semibold" : "border-border bg-surface text-muted"
+                  }`}
                 >
-                  ✕
+                  {FORMAT_LABELS[f]}
                 </button>
-              </li>
+              ))}
+            </div>
+          )}
+          <div className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+            <h2 className="font-semibold">Rules</h2>
+            <p className="text-xs text-muted">The scorer can still change them before the start and during the match.</p>
+            <RulesFields key={sport} rules={rules} setLabel={config.setLabel} onChange={setRules} sport={sport} />
+          </div>
+          {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+          <button
+            type="button"
+            onClick={() => {
+              const invalid = validateRules(rules);
+              setError(invalid);
+              if (!invalid) setStep(3);
+            }}
+            className="w-full rounded-xl bg-foreground py-3 font-semibold text-background"
+          >
+            Next: players
+          </button>
+        </section>
+      )}
+
+      {step === 3 && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2">
+            {(["A", "B"] as const).map((side) => (
+              <div key={side} className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+                <div className={`text-sm font-bold ${side === "A" ? "text-side-a" : "text-side-b"}`}>Side {side}</div>
+                {format === "singles" ? (
+                  <Field label="Player name">
+                    <div className="flex gap-2">
+                      <input
+                        value={sides[side].players[0]?.name ?? ""}
+                        onChange={(e) => updatePlayer(side, 0, { name: e.target.value })}
+                        placeholder={side === "A" ? "e.g. Riya Sharma" : "e.g. Asha Verma"}
+                      />
+                      <CardPicker
+                        name={sides[side].players[0]?.name ?? ""}
+                        cardId={sides[side].players[0]?.cardId}
+                        sport={sport}
+                        onPick={(p) => updatePlayer(side, 0, p)}
+                        onUnlink={() => updatePlayer(side, 0, { cardId: undefined })}
+                      />
+                    </div>
+                  </Field>
+                ) : (
+                  <>
+                    <Field label={format === "doubles" ? "Pair name" : "Team name"}>
+                      <input
+                        value={sides[side].name}
+                        onChange={(e) => updateSide(side, { name: e.target.value })}
+                        placeholder={format === "doubles" ? "e.g. Meera / Karan" : "e.g. Eagles"}
+                      />
+                    </Field>
+                    <div>
+                      <span className="mb-1 block text-sm font-medium">Players</span>
+                      <div className="space-y-2">
+                        {sides[side].players.map((p, i) => (
+                          <div key={i} className="flex gap-2">
+                            <input
+                              className="!w-16 shrink-0"
+                              value={p.jersey}
+                              onChange={(e) => updatePlayer(side, i, { jersey: e.target.value })}
+                              placeholder="#"
+                              aria-label="Jersey number"
+                              inputMode="numeric"
+                            />
+                            <input
+                              value={p.name}
+                              onChange={(e) => updatePlayer(side, i, { name: e.target.value })}
+                              placeholder={`Player ${i + 1}`}
+                              aria-label="Player name"
+                            />
+                            <CardPicker
+                              name={p.name}
+                              cardId={p.cardId}
+                              sport={sport}
+                              onPick={(picked) => updatePlayer(side, i, picked)}
+                              onUnlink={() => updatePlayer(side, i, { cardId: undefined })}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      {format === "team" && (
+                        <button
+                          type="button"
+                          className="mt-2 text-sm font-medium text-side-a"
+                          onClick={() => updateSide(side, { players: [...sides[side].players, { name: "", jersey: "" }] })}
+                        >
+                          + Add player
+                        </button>
+                      )}
+                      <p className="mt-1 text-xs text-muted">Optional. Used for the &ldquo;who scored&rdquo; prompt.</p>
+                    </div>
+                  </>
+                )}
+              </div>
             ))}
-          </ul>
-        )}
-        <IdentityForm
-          submitLabel="Add"
-          onSubmit={(key) => {
-            if (key === user) return "You're the organiser, so you can already score.";
-            if (scorers.includes(key)) return `${key} is already added.`;
-            setScorers([...scorers, key]);
-            return null;
-          }}
-        />
-      </section>
+          </section>
 
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Details</h2>
-        <Field label="Title / category">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Men's Singles · Quarter-final" />
-        </Field>
-        <Field label="Venue / court">
-          <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Court 2" />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Date" hint="Optional">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-          <Field label="Start time" hint="Optional">
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-          </Field>
-        </div>
-        <Field label="Livestream link" hint="Optional. Shown as a Watch live button on the public page.">
-          <input type="url" value={livestreamUrl} onChange={(e) => setLivestreamUrl(e.target.value)} placeholder="https://" />
-        </Field>
-      </section>
+          <details className="rounded-2xl border border-border bg-surface p-4">
+            <summary className="cursor-pointer font-semibold">More options</summary>
+            <p className="mt-1 text-xs text-muted">Scorers, title, venue, date and time, livestream. All optional.</p>
+            <section className="mt-4 space-y-3">
+              <h2 className="font-semibold">Scorers</h2>
+              <p className="text-xs text-muted">
+                You ({user}) can always score as organiser. Add people who may score this match; one scores at a time and any of them can
+                take over, e.g. if a phone dies. Scorers can add more people later.
+              </p>
+              {scorers.length > 0 && (
+                <ul className="flex flex-wrap gap-2">
+                  {scorers.map((s) => (
+                    <li key={s} className="flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-3 pr-1 text-sm">
+                      {IDENTITY_ICON[identityKind(s)]} {s}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${s}`}
+                        onClick={() => setScorers(scorers.filter((x) => x !== s))}
+                        className="rounded-full px-2 text-muted"
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <IdentityForm
+                submitLabel="Add"
+                onSubmit={(key) => {
+                  if (key === user) return "You're the organiser, so you can already score.";
+                  if (scorers.includes(key)) return `${key} is already added.`;
+                  setScorers([...scorers, key]);
+                  return null;
+                }}
+              />
+            </section>
 
-      {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+            <section className="mt-6 space-y-3">
+              <h2 className="font-semibold">Details</h2>
+              <Field label="Title / category">
+                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Men's Singles · Quarter-final" />
+              </Field>
+              <Field label="Venue / court">
+                <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Court 2" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Date" hint="Optional">
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </Field>
+                <Field label="Start time" hint="Optional">
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                </Field>
+              </div>
+              <Field label="Livestream link" hint="Optional. Shown as a Watch live button on the public page.">
+                <input type="url" value={livestreamUrl} onChange={(e) => setLivestreamUrl(e.target.value)} placeholder="https://" />
+              </Field>
+            </section>
+          </details>
 
-      <button type="submit" className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
-        Create match
-      </button>
+          {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+
+          <button type="submit" className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
+            Create match & start scoring
+          </button>
+        </>
+      )}
     </form>
   );
 }

@@ -12,14 +12,14 @@ note anything odd with the page and what you tapped.
 - [ ] A wrong code shows an error, not a crash
 
 ## 2. Single match
-- [ ] **+ Single match** → badminton singles; the rules show **Best of 3 games to 21** selected
+- [ ] ☰ → **Create a match** → step 1 Badminton → step 2 shows **Best of 3 games to 21** selected → step 3 players
 - [ ] Add the Scorer under scoring access (by email / mobile)
 - [ ] Toss: flip the coin, pick serve / side → **Start match**
 - [ ] Score points; serve indicator moves; at 11 a **60 s interval** reminder shows
 - [ ] **Undo** removes the last point
 - [ ] The second device (public view) updates within about a second
 - [ ] Scorer device: **Request to take over** → Organiser allows (or waits 15 s) → Scorer now scores
-- [ ] Finish the match → **Close match** → result shown on the home page as a score card
+- [ ] Finish the match → **Close match** → congratulations summary with the winner ✓; result on the home page
 - [ ] Organiser: **Edit points** on the closed match works; Scorer can't edit after close
 
 ## 3. Volleyball
@@ -47,7 +47,18 @@ note anything odd with the page and what you tapped.
 - [ ] Scorer signs in → **🪪 My card** shows that card as theirs → **Edit card** works
 - [ ] A third person can view the card but has no **Edit card** button
 
-## 7. General
+## 7. Sports meet
+- [ ] ☰ → **Create a sports meet**: name, city, dates → pick Badminton Singles and Volleyball Team → add an
+      admin to one event → paste a Google Form link and fee info → **Create**
+- [ ] Meet page: events listed, registration **Open**, the link can be copied / shared on WhatsApp
+- [ ] On another phone, signed in as a captain: open the link → choose the event → the form link shows first →
+      tick "I have filled in…" → enter players → **Send registration request** → "Request sent"
+- [ ] Organiser / event admin: ☰ shows a red badge → open the request → **Approve** → the team appears in the
+      event's tournament entries; or **Reject** with a reason
+- [ ] Captain sees **Approved** / **Rejected** (with the reason) on the meet page
+- [ ] Home page: the meet shows under **Your events**; set your city → it shows under **Near you** for others
+
+## 8. General
 - [ ] Every page works on the phone without sideways scrolling
 - [ ] Turning the phone's internet off and on: the scorer screen recovers and the score is saved
 - [ ] Refreshing any page keeps the data

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
+import { rememberVisit } from "@/lib/recent";
 import { IdentityForm } from "@/components/IdentityForm";
 import { CardPicker } from "@/components/cards/CardPicker";
 import { Bracket, PointsTable, entryName } from "@/components/tournament/parts";
@@ -28,6 +29,7 @@ import {
   setStructure,
   setThirdPlace,
   startKnockout,
+  canManageTournament,
 } from "@/lib/tournament/mutations";
 import type { Fixture, Tournament } from "@/lib/tournament/types";
 import { runTournamentAction, updateTournament, useMatches, useTies, useTournament, useUser } from "@/lib/store";
@@ -42,6 +44,7 @@ export function TournamentView({ params }: { params: Promise<{ id: string }> }) 
   const { id } = use(params);
   const t = useTournament(id);
   const matches = useMatches();
+  useEffect(() => rememberVisit("tournament", id), [id]);
   const ties = useTies();
   if (t === undefined || matches === null || ties === null) return <p className="py-10 text-center text-muted">Loading…</p>;
   if (t === null)
@@ -58,7 +61,7 @@ export function TournamentView({ params }: { params: Promise<{ id: string }> }) 
 
 function View({ t, data }: { t: Tournament; data: Data }) {
   const user = useUser();
-  const organiser = user === t.organiser;
+  const organiser = canManageTournament(t, user);
   const setup = t.phase === "setup";
   const tabs: { key: Tab; label: string }[] = [
     { key: "entries", label: `Entries (${t.entries.length})` },
@@ -89,6 +92,11 @@ function View({ t, data }: { t: Tournament; data: Data }) {
   return (
     <div className="space-y-4 pb-10">
       <div>
+        {t.meet && (
+          <Link href={`/meets/${t.meet.id}`} className="text-sm font-medium text-side-a">
+            ← {t.meet.name}
+          </Link>
+        )}
         <p className="text-sm text-muted">
           {[sport.name, FORMAT_LABELS[t.format], STRUCTURES.find((s) => s.key === t.structure)?.title, t.venue, t.startDate]
             .filter(Boolean)
@@ -96,7 +104,8 @@ function View({ t, data }: { t: Tournament; data: Data }) {
         </p>
         <h1 className="text-xl font-bold">{t.name}</h1>
         <p className="mt-0.5 text-xs text-muted">
-          Organiser {t.organiser} · {describeRules(t.rules, sport.setLabel)}
+          Organiser {t.organiser}
+          {(t.admins ?? []).length > 0 && ` · Admins ${t.admins!.join(", ")}`} · {describeRules(t.rules, sport.setLabel)}
           {tieSystem(t.tieSystem) && ` · ${tieSystem(t.tieSystem)!.label} ties`}
           {t.structure !== "knockout" && ` · ${RANKINGS[t.ranking ?? "custom"].label} table`}
           {t.structure !== "knockout" && (t.legs ?? 1) === 2 && " · home and away"}

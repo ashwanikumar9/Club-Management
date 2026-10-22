@@ -1,6 +1,7 @@
 import { MutationError, newId } from "../rally/mutations";
 import type { Match, MatchFormat } from "../rally/types";
 import type { Tie } from "../tie/types";
+import { canManageTournament } from "./access";
 import { fixtureOutcome, isByeFixture, resolveSides, type Data } from "./engine";
 import type { Entry, EntryPlayer, Fixture, Schedule, Tournament } from "./types";
 
@@ -194,7 +195,7 @@ export function applySchedules(
 }
 
 function requireOrganiser(t: Tournament, by: string) {
-  if (t.organiser !== by) throw new MutationError("Only the organiser can change the schedule.");
+  if (!canManageTournament(t, by)) throw new MutationError("Only the organiser can change the schedule.");
 }
 
 export function autoSchedule(t: Tournament, by: string, data: Data, options: AutoScheduleOptions) {
@@ -284,7 +285,7 @@ export function parseBulkEntries(format: MatchFormat, text: string): { entries: 
 
 /** Adds many entries at once (with optional seeds). */
 export function addEntries(t: Tournament, by: string, parsed: ParsedEntry[]): Tournament {
-  if (t.organiser !== by) throw new MutationError("Only the organiser can change the tournament.");
+  if (!canManageTournament(t, by)) throw new MutationError("Only the organiser can change the tournament.");
   if (t.phase !== "setup") throw new MutationError("Fixtures have been generated; entries are locked.");
   const names = new Set(t.entries.map((e) => e.name.toLowerCase()));
   const added: Entry[] = [];

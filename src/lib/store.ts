@@ -9,7 +9,12 @@ import {
   identityOf,
   insertContacts,
   insertRows,
+  insertRegistration,
   loadContacts,
+  loadRegistrations,
+  subscribeRegistrations,
+  updateRegistration,
+  deleteRegistration as deleteRegistrationRow,
   loadCollection,
   remoteEnabled,
   subscribe as subscribeRemote,
@@ -18,6 +23,7 @@ import {
   type CollectionName,
   type Row,
 } from "./remote";
+import type { Meet, Registration } from "./meet/types";
 import type { ContactRow, PlayerCard } from "./players/cards";
 import type { Tie } from "./tie/types";
 import type { Data } from "./tournament/engine";
@@ -221,7 +227,8 @@ const matches = collection<Match>("matches", "cm.matches.v2");
 const tournaments = collection<Tournament>("tournaments", "cm.tournaments.v2");
 const ties = collection<Tie>("ties", "cm.ties.v1");
 const players = collection<PlayerCard>("players", "cm.players.v1");
-const all = [matches, tournaments, ties, players];
+const meets = collection<Meet>("meets", "cm.meets.v1");
+const all = [matches, tournaments, ties, players, meets];
 
 let remoteStarted = false;
 
@@ -232,6 +239,7 @@ function startRemote() {
   // Load everything up front: closing a match also updates its tournament, even on pages that don't show it.
   for (const c of all) void c.load();
   void contacts.reload();
+  void registrations.reload();
   subscribeRemote((event, row) => {
     for (const c of all) c.receive(event, row);
   });
@@ -246,6 +254,7 @@ function subscribe(listener: () => void) {
   const onStorage = (e: StorageEvent) => {
     for (const c of all) if (e.key === c.localKey) c.refreshLocal();
     if (e.key === CONTACTS_KEY) contacts.refreshLocal();
+    if (e.key === REGISTRATIONS_KEY) registrations.refreshLocal();
     listener();
   };
   window.addEventListener("storage", onStorage);
@@ -464,12 +473,21 @@ export function syncTournamentById(id: string) {
  */
 const USER_KEY = "cm.user.v1";
 let userCache: string | null | undefined;
+let registrationChannel: ReturnType<typeof subscribeRegistrations> | null = null;
 
 function setUserCache(user: string | null) {
   const changed = userCache !== user;
   userCache = user;
   emit();
-  if (changed) void contacts.reload(); // which contacts are visible depends on who is signed in
+  if (changed && remoteEnabled) {
+    // Which contacts and registrations are visible depends on who is signed in. Live updates for
+    // registrations are filtered by the same rules, using the identity the subscription started with,
+    // so it is restarted for the new person.
+    void contacts.reload();
+    void registrations.reload();
+    if (registrationChannel) void supabase().removeChannel(registrationChannel);
+    registrationChannel = user ? subscribeRegistrations(() => void registrations.reload()) : null;
+  }
 }
 
 function readUser(): string | null {
@@ -528,4 +546,161 @@ export async function verifySignInCode(identity: string, code: string): Promise<
     ? await auth.verifyOtp({ email: identity, token: code.trim(), type: "email" })
     : await auth.verifyOtp({ phone: identity, token: code.trim(), type: "sms" });
   return error ? error.message : null;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Sports meets and team registrations
+
+export function useMeets(): Collection<Meet> | null {
+  return useSyncExternalStore(subscribe, meets.get, () => null);
+}
+
+export function useMeet(id: string): Meet | null | undefined {
+  const list = useMeets();
+  if (list === null) return undefined;
+  return list[id] ?? null;
+}
+
+/** Saves a new meet and the tournament of each event (tournaments first, so the meet never points at nothing). */
+export function saveMeet(meet: Meet, eventTournaments: Tournament[]) {
+  void tournaments.saveMany(eventTournaments).then(() => meets.saveMany([meet]));
+}
+
+export const updateMeet = (id: string, mutate: (m: Meet) => Meet) => meets.update(id, mutate);
+
+/** Changes a meet together with one event's tournament (e.g. its admins), or adds / removes an event. */
+export function runMeetAction(
+  id: string,
+  action: (m: Meet, all: Collection<Tournament>) => { meet: Meet; tournament?: Tournament; newTournament?: Tournament; deleteTournament?: string },
+): string | null {
+  let result: ReturnType<typeof action> | null = null;
+  return meets.update(
+    id,
+    (m) => {
+      result = action(m, tournaments.read());
+      return result.meet;
+    },
+    () => {
+      if (!result) return;
+      if (result.newTournament) void tournaments.saveMany([result.newTournament]);
+      if (result.tournament) tournaments.update(result.tournament.id, () => result!.tournament!);
+      if (result.deleteTournament) tournaments.remove(result.deleteTournament);
+    },
+  );
+}
+
+const REGISTRATIONS_KEY = "cm.registrations.v1";
+
+/**
+ * Registrations visible to this person. With the database, the rules decide which (their own requests, and
+ * the requests of events they manage), reloaded on sign-in and on every change; in prototype mode all of them.
+ */
+const registrations = (() => {
+  let cache: Registration[] | null = null;
+  let latestLoad = 0;
+  const readLocal = (): Registration[] => {
+    try {
+      return JSON.parse(localStorage.getItem(REGISTRATIONS_KEY) ?? "[]") as Registration[];
+    } catch {
+      return [];
+    }
+  };
+  const set = (rows: Registration[]) => {
+    cache = rows;
+    if (!remoteEnabled) {
+      try {
+        localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(rows));
+      } catch {
+        // keep the in-memory copy
+      }
+    }
+    emit();
+  };
+  const current = () => (remoteEnabled ? (cache ?? []) : readLocal());
+  return {
+    get: (): Registration[] => (cache ??= remoteEnabled ? [] : readLocal()),
+    current,
+    refreshLocal: () => {
+      if (!remoteEnabled) cache = readLocal();
+    },
+    reload: async () => {
+      if (!remoteEnabled) return;
+      const request = ++latestLoad;
+      try {
+        const rows = await loadRegistrations<Registration>();
+        if (request === latestLoad) set(rows);
+      } catch (e) {
+        reportSyncError(`Couldn't load registrations: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+    add: async (reg: Registration): Promise<string | null> => {
+      if (remoteEnabled) {
+        try {
+          await insertRegistration(reg);
+        } catch (e) {
+          return `Couldn't send the request: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+      set([...current(), reg]);
+      return null;
+    },
+    /** Saves a decision; refuses if someone else decided first. */
+    replace: async (reg: Registration, expected: number): Promise<string | null> => {
+      if (remoteEnabled) {
+        try {
+          if (!(await updateRegistration(reg, expected))) {
+            void registrations.reload();
+            return "Someone else updated this request first. It has been refreshed.";
+          }
+        } catch (e) {
+          return `Couldn't save: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+      set(current().map((r) => (r.id === reg.id ? { ...reg, version: expected + 1 } : r)));
+      return null;
+    },
+    remove: async (id: string): Promise<string | null> => {
+      if (remoteEnabled) {
+        try {
+          await deleteRegistrationRow(id);
+        } catch (e) {
+          return `Couldn't withdraw: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      }
+      set(current().filter((r) => r.id !== id));
+      return null;
+    },
+  };
+})();
+
+const NO_REGISTRATIONS: Registration[] = [];
+
+export function useRegistrations(): Registration[] {
+  return useSyncExternalStore(subscribe, registrations.get, () => NO_REGISTRATIONS);
+}
+
+export const sendRegistration = (reg: Registration) => registrations.add(reg);
+export const withdrawRegistration = (id: string) => registrations.remove(id);
+
+/**
+ * Applies a decision on a registration. For an approval, `tournament` adds the team to the event's
+ * tournament first; the request is marked approved once that is saved.
+ */
+export async function decideRegistration(
+  reg: Registration,
+  decide: (r: Registration, t: Tournament | undefined) => { registration: Registration; tournament?: Tournament },
+  tournamentId?: string,
+): Promise<string | null> {
+  let result: ReturnType<typeof decide> | null = null;
+  try {
+    result = decide(reg, tournamentId ? tournaments.read()[tournamentId] : undefined);
+  } catch (e) {
+    if (e instanceof MutationError) return e.message;
+    throw e;
+  }
+  if (result.tournament && tournamentId) {
+    const err = tournaments.update(tournamentId, (t) => decide(reg, t).tournament!);
+    if (err) return err;
+  }
+  return registrations.replace(result.registration, reg.version);
 }

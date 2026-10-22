@@ -2,6 +2,7 @@ import { MutationError, newId } from "../rally/mutations";
 import type { Match } from "../rally/types";
 import type { Tie } from "../tie/types";
 import { buildKnockout, fixtureOutcome, resolveSides, roundRobin, snakeAssign, type Data } from "./engine";
+import { canManageTournament } from "./access";
 import { createReady, matchForFixture, tieForFixture } from "./mutations";
 import type { Fixture, Group, Stage, Tournament } from "./types";
 
@@ -17,7 +18,7 @@ export interface RoundsResult {
 }
 
 function requireOrganiser(t: Tournament, by: string) {
-  if (t.organiser !== by) throw new MutationError("Only the organiser can change rounds and fixtures.");
+  if (!canManageTournament(t, by)) throw new MutationError("Only the organiser can change rounds and fixtures.");
 }
 
 function requireStarted(t: Tournament) {

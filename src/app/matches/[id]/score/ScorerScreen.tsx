@@ -7,6 +7,7 @@ import { Sheet } from "@/components/Sheet";
 import { describePoint, playerName } from "@/lib/rally/commentary";
 import { decidingTossDue, intervalDue, other, type MatchState } from "@/lib/rally/engine";
 import { OutcomePicker } from "@/components/OutcomePicker";
+import { MatchSummary } from "@/components/cards/MatchSummary";
 import { TossPanel } from "@/components/TossPanel";
 import { RulesFields } from "@/components/RulesFields";
 import { ScorersPanel } from "@/components/ScorersPanel";
@@ -161,7 +162,7 @@ function Scorer({
     return (
       <div className="space-y-4">
         <Header match={match} />
-        <Scoreboard match={match} state={state} />
+        <MatchSummary match={match} state={state} />
         <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
           <p className="font-semibold">This match is closed.</p>
           {organiser ? (

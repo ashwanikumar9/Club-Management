@@ -53,7 +53,12 @@ the **Authentication** section, or use the addresses above.
    or email is only visible to whoever added it and to the player.
 4. Check: left sidebar → **Table Editor** lists `documents` and `player_contacts`.
 
-Already set up before player cards existed? Run only step 3.
+4. New query again: paste [`supabase/migrations/20261024000000_sports_meets.sql`](../supabase/migrations/20261024000000_sports_meets.sql)
+   and click **Run**. It adds sports meets and the private `registrations` table: a team's request is visible
+   only to its captain and to the meet's organiser / that event's admins.
+
+Already set up earlier? Run only the files you haven't run yet, in date order (the date is the start of each
+file name). Running a file twice shows an error ("already exists") and changes nothing.
 
 ## 3. Sign-in by code
 
@@ -180,6 +185,7 @@ by `supabase start` (Mailpit, usually <http://127.0.0.1:54324>).
 | The email has a link instead of a code | The email template wasn't replaced; it must contain `{{ .Token }}` (step 3) |
 | "Couldn't save: … row-level security" | You're not the organiser or a scorer of that record, or step 2 wasn't run completely |
 | "Couldn't load data: … players" or cards don't save | Run the player cards SQL (step 2.3) |
+| Sports meets don't save, or "Couldn't load registrations" | Run the sports meets SQL (step 2.4) |
 | Nothing loads after a quiet week | The free project paused: open the Supabase dashboard and restore it |
 
 ## Current limits

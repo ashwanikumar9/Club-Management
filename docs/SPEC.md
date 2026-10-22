@@ -490,6 +490,36 @@ Regulations 3.7.5–3.7.7), FIVB Official Volleyball Rules 2025–2028, FIVB Eve
 - Matches inside a tie never ask "who scored" (the players are known from the line-up)
 - Volleyball stays a single team match with optional "who scored"
 
+### Navigation, home page and match creation
+- **Side menu (☰)** in the header: Home, Create a match, Create a tournament, Create a sports meet, Team tie,
+  Players, My card; a red badge counts registration requests waiting for the signed-in person
+- **Create a match in steps** (made for phones): 1) sport, 2) format and rules for that sport, 3) players (with
+  "+ Card"), with scorers / title / venue / date / livestream under "More options"; then straight to the scorer
+- **Match summary** after closing: congratulations banner with the winner ✓, the score by set, links to the
+  winners' player cards, then "Start another match" / back to the tournament or tie
+- **Home page**: quick create buttons; Live now; **Your events** (meets and tournaments the person runs, admins,
+  scores, plays in through their card, registered a team for, or opened recently on this device); **Near you**
+  (live and upcoming events whose city matches the city the person sets once); team ties; upcoming single
+  matches; results
+
+### Sports meets and team registration
+- **A meet** has a name, venue, city and dates, and **events**: a sport and format (e.g. Badminton · Singles,
+  Volleyball · Team; several of the same, e.g. women's / under-17). Each event is its own tournament, created
+  from a template (Championship by default; team championship for team events)
+- **Admins per event** (optional): mobile / email; they manage that event's tournament like the organiser
+  (fixtures, schedule, approving its teams) and can score its matches. Blank = the organiser runs it
+- **Registration link** (copy / share on WhatsApp). The registration page: 1) choose the event, 2) open the
+  organiser's Google Form (player details, fees) and confirm it is submitted, 3) team / pair name, players
+  ("+ Card"), extra contact, message → **request sent**. Captains must sign in with mobile or email
+- **Organiser / event admin**: notified in the app (menu badge, live); each request shows team, players, contact,
+  form confirmation and message; **Approve** adds the team as an entry of the event's tournament (only while
+  its fixtures aren't generated); **Reject** with a reason shown to the team. Captains see Waiting / Approved /
+  Rejected and can withdraw a waiting request
+- **Privacy**: requests (with the captain's contact) are visible only to the captain and that event's managers
+- **Organiser settings**: open / close registration, form link, information for teams (fees, deadlines), city;
+  add or remove events (an event with teams or fixtures can't be removed), change admins
+- Later: email / push notifications for new requests, online fee payment, a medal tally across the meet
+
 ### Player cards and score cards
 - **One player card per person**, for all sports: name, sports, club, playing hand, and a record computed from
   every match it is linked to: played, won, win %, titles, last five results, per-sport W–L / games / points,

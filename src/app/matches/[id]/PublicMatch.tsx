@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use } from "react";
+import { MatchSummary } from "@/components/cards/MatchSummary";
 import { CommentaryFeed, MatchGate, Scoreboard, matchSubtitle, useMatchView } from "@/components/match-ui";
 import { hasScoringAccess, isCorrected, isOrganiser } from "@/lib/rally/mutations";
 import { describeRules } from "@/lib/rally/rules";
@@ -35,7 +36,7 @@ export function PublicMatch({ params }: { params: Promise<{ id: string }> }) {
             </h1>
           </div>
 
-          <Scoreboard match={m} state={state!} />
+          {m.status === "closed" ? <MatchSummary match={m} state={state!} /> : <Scoreboard match={m} state={state!} />}
           <p className="-mt-2 text-xs text-muted">Rules: {describeRules(state!.rules, SPORTS[m.sport].setLabel)}</p>
 
           {m.status === "closed" && isCorrected(m) && (

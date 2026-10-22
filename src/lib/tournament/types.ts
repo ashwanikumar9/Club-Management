@@ -91,8 +91,14 @@ export interface Tournament {
   /** Courts / tables / grounds matches are played on. */
   courts: string[];
   organiser: string;
+  /** People who manage the tournament like the organiser (e.g. a sports meet's admin for this sport). */
+  admins?: string[];
   /** People given scoring access to every match of the tournament. */
   scorers: string[];
+  /** Town or city, for "near you" on the home page. */
+  city?: string;
+  /** The sports meet this tournament is one event of. */
+  meet?: { id: string; name: string; eventId: string };
   rules: RallyRules;
   points: PointsConfig;
   /** How group tables are ordered. Missing on older tournaments, which use "custom". */

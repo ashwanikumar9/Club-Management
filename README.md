@@ -13,6 +13,15 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
   Corbillon, Olympic, best of 7 / 9 with captains' letters), beach volleyball side changes, the new toss
   before a volleyball deciding set, interval reminders, and tournament templates for new organisers
   (Club night, Official knockout, Championship, Team championship, League season, Beach)
+- **Side menu (☰)**: create a match, tournament or sports meet, team tie, players, my card; a badge shows
+  registration requests waiting for you
+- **Step-by-step match creation** for phones: sport → that sport's format and rules → players → scoring; a
+  finished match shows a summary with a congratulations message
+- **Home page**: live matches, your events (ones you run, play in, registered for or opened) and events near you
+  (by city)
+- **Sports meets**: several sports and events under one name, an optional admin per event, a registration link
+  to share (WhatsApp / copy); teams first open the organiser's Google Form, then send a registration request; the
+  organiser or event admin is notified in the app and approves it, which adds the team to that event's tournament
 - **Player cards**: one card per person for every sport, created by an organiser (mobile number and / or
   email required) or by the player. Pick a card when adding someone to a match, tie or tournament and their
   results, win rate, form, titles and medals, winning shots and upcoming matches follow them. The card
@@ -99,6 +108,9 @@ change what. Step-by-step: [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md). T
 | `src/lib/tie/systems.ts` | Official team-match systems |
 | `src/lib/players/cards.ts` | Player cards: create, edit, contacts, ownership, search |
 | `src/lib/players/stats.ts` | Player records, form, medals and winning shots from matches and tournaments |
+| `src/lib/meet` | Sports meets, events, admins and team registration |
+| `src/lib/home.ts` | Home page lists: your events, near you |
+| `src/app/meets` | Meet page, creation wizard and registration page |
 | `src/app/players`, `src/app/me` | Player directory, profiles and "My card" |
 | `src/components/cards` | Score card, player card and the card picker used in entry forms |
 | `src/lib/tournament/rounds.ts` | Extra rounds and fixture editing |

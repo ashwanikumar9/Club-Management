@@ -47,6 +47,7 @@ export function TournamentForm() {
   const [venue, setVenue] = useState("");
   const [courts, setCourts] = useState("Court 1, Court 2");
   const [startDate, setStartDate] = useState("");
+  const [city, setCity] = useState("");
   const [tieMatchCount, setTieMatchCount] = useState(5);
   const [system, setSystem] = useState("");
   const [thirdPlace, setThirdPlace] = useState(false);
@@ -112,6 +113,7 @@ export function TournamentForm() {
         structure,
         thirdPlace: structure !== "league" && thirdPlace,
         courts: courts.split(",").map((c) => c.trim()).filter(Boolean),
+        city,
         tieMatchCount,
         tieSystem: ties && system ? system : undefined,
       });
@@ -153,6 +155,10 @@ export function TournamentForm() {
             <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Sports Hall" />
           </label>
           <label className="block">
+            <span className="mb-1 block text-sm font-medium">City</span>
+            <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Patna" />
+          </label>
+          <label className="col-span-2 block">
             <span className="mb-1 block text-sm font-medium">Start date</span>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </label>

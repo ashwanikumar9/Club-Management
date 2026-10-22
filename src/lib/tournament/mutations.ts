@@ -21,6 +21,7 @@ import {
   tournamentFinished,
   type Data,
 } from "./engine";
+import { canManageTournament } from "./access";
 import { OFFICIAL_RANKING, RANKINGS, type RankingKey } from "./ranking";
 import type { Entry, EntryPlayer, Fixture, PointsConfig, Structure, Tournament } from "./types";
 
@@ -43,6 +44,8 @@ export interface NewTournamentInput {
   structure: Structure;
   thirdPlace?: boolean;
   courts?: string[];
+  /** Town or city, for "near you". */
+  city?: string;
   /** Matches per tie for badminton / table tennis team events. */
   tieMatchCount?: number;
   /** Official team system for the ties. */
@@ -50,6 +53,8 @@ export interface NewTournamentInput {
 }
 
 /** Whether fixtures are team ties (badminton / table tennis team events) rather than single matches. */
+export { canManageTournament };
+
 export function usesTies(t: Pick<Tournament, "sport" | "format">): boolean {
   return t.format === "team" && t.sport !== "volleyball";
 }
@@ -75,6 +80,7 @@ export function createTournament(input: NewTournamentInput): Tournament {
     organiser: input.organiser,
     scorers: [],
     courts: input.courts?.length ? input.courts : ["Court 1"],
+    city: input.city?.trim() || undefined,
     rules: { ...input.rules },
     points: { ...input.points },
     ranking: input.ranking ?? OFFICIAL_RANKING[input.sport],
@@ -99,7 +105,7 @@ function makeGroups(count: number) {
 }
 
 function requireOrganiser(t: Tournament, by: string) {
-  if (t.organiser !== by) throw new MutationError("Only the organiser can change the tournament.");
+  if (!canManageTournament(t, by)) throw new MutationError("Only the organiser can change the tournament.");
 }
 
 function requireSetup(t: Tournament) {

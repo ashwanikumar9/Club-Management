@@ -20,7 +20,7 @@ export function supabase(): SupabaseClient {
   return client;
 }
 
-export type CollectionName = "matches" | "tournaments" | "ties" | "players";
+export type CollectionName = "matches" | "tournaments" | "ties" | "players" | "meets";
 
 export interface Row<T> {
   collection: CollectionName;
@@ -100,6 +100,45 @@ export async function insertContacts(rows: ContactRowData[]) {
     .from("player_contacts")
     .insert(rows.map((r) => ({ player_id: r.playerId, contact: r.contact, added_by: r.addedBy })));
   if (error) throw error;
+}
+
+/** Team registrations this person may see (their own, and those of events they manage). */
+export async function loadRegistrations<T>(): Promise<T[]> {
+  const { data, error } = await supabase().from("registrations").select("data,version");
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ ...(r.data as T), version: r.version as number }));
+}
+
+export async function insertRegistration<T extends { id: string; meetId: string; eventId: string; captain: string; status: string }>(reg: T) {
+  const { error } = await supabase()
+    .from("registrations")
+    .insert({ id: reg.id, meet_id: reg.meetId, event_id: reg.eventId, captain: reg.captain, status: reg.status, data: reg, version: 0 });
+  if (error) throw error;
+}
+
+/** Writes a decision if the request is still at `expected`; false when someone else changed it first. */
+export async function updateRegistration<T extends { id: string; status: string }>(reg: T, expected: number): Promise<boolean> {
+  const { data, error } = await supabase()
+    .from("registrations")
+    .update({ status: reg.status, data: reg, version: expected + 1, updated_at: new Date().toISOString() })
+    .eq("id", reg.id)
+    .eq("version", expected)
+    .select("id");
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+export async function deleteRegistration(id: string) {
+  const { error } = await supabase().from("registrations").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Calls `onChange` whenever a registration this person can see changes. */
+export function subscribeRegistrations(onChange: () => void): RealtimeChannel {
+  return supabase()
+    .channel("registrations")
+    .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => onChange())
+    .subscribe();
 }
 
 /** Live changes to every document, from any device. */
