@@ -2,6 +2,7 @@ import { matchState } from "../rally/engine";
 import { MutationError, addScorer, createMatch, newId } from "../rally/mutations";
 import { validateRules } from "../rally/rules";
 import type { Match, Player, RallyRules, SideKey } from "../rally/types";
+import { matchesPerPlayer, tieSystem } from "./systems";
 import type { LineupMode, Tie, TieSlot, TieTeam } from "./types";
 
 export type Matches = Record<string, Match>;
@@ -83,6 +84,10 @@ export interface NewTieInput {
   rules: RallyRules;
   teams: Record<SideKey, { name: string; players: Omit<Player, "id">[]; entryId?: string }>;
   matchCount: number;
+  /** Official team system; sets the number, order and formats of the matches. */
+  system?: string;
+  /** Letters for lettered systems, as positions in each team's player list. */
+  letters?: Partial<Record<SideKey, Record<string, number>>>;
   lineupMode: LineupMode;
   /** Line-ups for "advance" mode, by match index: format and player positions in each team's list. */
   lineups?: { format: "singles" | "doubles"; A: number[]; B: number[] }[];
@@ -99,6 +104,9 @@ function teamFrom(side: { name: string; players: Omit<Player, "id">[]; entryId?:
 }
 
 export function createTie(input: NewTieInput): Tie {
+  const system = tieSystem(input.system);
+  if (input.system && (!system || system.sport !== input.sport)) throw new MutationError("Unknown team system for this sport.");
+  if (system) input = { ...input, matchCount: system.slots.length, lineupMode: "at_start", lineups: undefined };
   if (!Number.isInteger(input.matchCount) || input.matchCount < 1 || input.matchCount > 9 || input.matchCount % 2 === 0) {
     throw new MutationError("A tie has an odd number of matches between 1 and 9, so it can't end level.");
   }
@@ -117,14 +125,24 @@ export function createTie(input: NewTieInput): Tie {
     rules: { ...input.rules },
     teams,
     matchCount: input.matchCount,
+    system: system?.key,
     lineupMode: input.lineupMode,
     playAll: false,
-    slots: Array.from({ length: input.matchCount }, (_, index) => ({ index })),
+    slots: Array.from({ length: input.matchCount }, (_, index) => {
+      const def = system?.slots[index];
+      return def ? { index, format: def.format, label: def.label, letters: def.letters } : { index };
+    }),
     organiser: input.organiser,
     scorers: [...new Set(input.scorers ?? [])].filter((s) => s !== input.organiser),
     createdAt: new Date().toISOString(),
     version: 0,
   };
+  for (const side of ["A", "B"] as const) {
+    const given = input.letters?.[side];
+    if (!given) continue;
+    const ids = Object.fromEntries(Object.entries(given).map(([letter, pos]) => [letter, tie.teams[side].players[pos]?.id ?? ""]));
+    tie = applyLetters(tie, side, ids);
+  }
   if (input.lineupMode === "advance") {
     if (!input.lineups || input.lineups.length !== input.matchCount) throw new MutationError("Set the line-up for every match.");
     input.lineups.forEach((l, i) => {
@@ -143,6 +161,11 @@ function applyLineup(tie: Tie, index: number, format: "singles" | "doubles", pla
   const slot = tie.slots[index];
   if (!slot) throw new MutationError("Match not found.");
   if (slot.matchId) throw new MutationError("This match has already been created; its line-up can't change.");
+  if (slot.letters) throw new MutationError(`The players for ${slot.label} come from the team letters.`);
+  const system = tieSystem(tie.system);
+  if (system && slot.format && slot.format !== format) {
+    throw new MutationError(`${slot.label ?? `Match ${index + 1}`} is ${slot.format} in the ${system.label} format.`);
+  }
   const size = format === "singles" ? 1 : 2;
   for (const side of ["A", "B"] as const) {
     const team = tie.teams[side];
@@ -153,7 +176,58 @@ function applyLineup(tie: Tie, index: number, format: "singles" | "doubles", pla
     if (!chosen.every((id) => team.players.some((p) => p.id === id))) throw new MutationError(`Unknown player for ${team.name}.`);
   }
   const slots = tie.slots.map((s) => (s.index === index ? { ...s, format, players } : s));
-  return { ...tie, slots };
+  const next = { ...tie, slots };
+  checkMaxPerPlayer(next);
+  return next;
+}
+
+function checkMaxPerPlayer(tie: Tie) {
+  const max = tieSystem(tie.system)?.maxPerPlayer;
+  if (!max) return;
+  for (const [id, count] of matchesPerPlayer(tie)) {
+    if (count <= max) continue;
+    const player = [...tie.teams.A.players, ...tie.teams.B.players].find((p) => p.id === id);
+    throw new MutationError(`${player?.name ?? "A player"} would play ${count} matches; this format allows ${max}.`);
+  }
+}
+
+/** Assigns a team's letters (letter → player id) and fills the lettered singles that haven't started. */
+function applyLetters(tie: Tie, side: SideKey, map: Record<string, string>): Tie {
+  const system = tieSystem(tie.system);
+  if (!system?.letters) throw new MutationError("This tie doesn't use letters.");
+  const allowed = system.letters[side];
+  const team = tie.teams[side];
+  const clean: Record<string, string> = {};
+  for (const [letter, id] of Object.entries(map)) {
+    if (!id) continue;
+    if (!allowed.includes(letter)) throw new MutationError(`${team.name} uses the letters ${allowed.join(", ")}.`);
+    if (!team.players.some((p) => p.id === id)) throw new MutationError(`Unknown player for ${team.name}.`);
+    clean[letter] = id;
+  }
+  if (new Set(Object.values(clean)).size !== Object.values(clean).length) throw new MutationError("Give each letter a different player.");
+  const before = tie.letters?.[side] ?? {};
+  for (const slot of tie.slots) {
+    const letter = slot.letters?.[side];
+    if (slot.matchId && letter && before[letter] !== clean[letter]) {
+      throw new MutationError(`${slot.label} has already started, so player ${letter} can't change.`);
+    }
+  }
+  const letters = { ...tie.letters, [side]: clean };
+  const slots = tie.slots.map((slot) => {
+    if (!slot.letters || slot.matchId) return slot;
+    const a = letters.A?.[slot.letters.A];
+    const b = letters.B?.[slot.letters.B];
+    return { ...slot, players: a && b ? { A: [a], B: [b] } : undefined };
+  });
+  const next = { ...tie, letters, slots };
+  checkMaxPerPlayer(next);
+  return next;
+}
+
+/** Captain's letters for a lettered system (ITTF): fills every singles match from them. */
+export function setLetters(tie: Tie, by: string, side: SideKey, map: Record<string, string>): Tie {
+  if (!hasTieAccess(tie, by)) throw new MutationError("You don't have scoring access to this tie.");
+  return applyLetters(tie, side, map);
 }
 
 /** Sets (or changes) a match's line-up before it starts. Anyone with scoring access can do this. */
@@ -193,7 +267,7 @@ export function createSlotMatch(tie: Tie, by: string, index: number, matches: Ma
   });
   const base = createMatch({
     sport: tie.sport,
-    title: `${tie.title} · Match ${index + 1} (${slot.format === "singles" ? "Singles" : "Doubles"})`,
+    title: `${tie.title} · ${slot.label ? `Match ${index + 1}: ${slot.label}` : `Match ${index + 1} (${slot.format === "singles" ? "Singles" : "Doubles"})`}`,
     venue: tie.venue,
     livestreamUrl: "",
     format: slot.format,

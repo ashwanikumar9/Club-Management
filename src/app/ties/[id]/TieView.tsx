@@ -10,7 +10,8 @@ import { matchState } from "@/lib/rally/engine";
 import { describeRules } from "@/lib/rally/rules";
 import { SPORTS } from "@/lib/rally/sports";
 import type { SideKey } from "@/lib/rally/types";
-import { addTieScorer, createSlotMatch, hasTieAccess, playerLabel, setLineup, setPlayAll, tieState, type SlotView } from "@/lib/tie/tie";
+import { tieSystem } from "@/lib/tie/systems";
+import { addTieScorer, createSlotMatch, hasTieAccess, playerLabel, setLetters, setLineup, setPlayAll, tieState, type SlotView } from "@/lib/tie/tie";
 import type { Tie } from "@/lib/tie/types";
 import { runTieAction, useMatches, useTie, useUser } from "@/lib/store";
 
@@ -75,6 +76,7 @@ function View({ tie, matches }: { tie: Tie; matches: ReturnType<typeof useMatche
         </p>
         <h1 className="text-xl font-bold">{tie.title}</h1>
         <p className="mt-0.5 text-xs text-muted">
+          {tieSystem(tie.system) ? `${tieSystem(tie.system)!.label} · ` : ""}
           {describeRules(tie.rules, SPORTS[tie.sport].setLabel)} · first to {state.needed} of {tie.matchCount} matches
         </p>
       </div>
@@ -121,6 +123,8 @@ function View({ tie, matches }: { tie: Tie; matches: ReturnType<typeof useMatche
           Play the remaining matches anyway
         </label>
       )}
+
+      {tieSystem(tie.system)?.letters && <LettersPanel tie={tie} access={access} user={user} setError={setError} />}
 
       <ol className="space-y-2">
         {state.slots.map((view) => (
@@ -192,7 +196,7 @@ function SlotCard({
       <div className="mb-1 flex items-center justify-between text-xs text-muted">
         <span>
           Match {slot.index + 1}
-          {slot.format ? ` · ${slot.format === "singles" ? "Singles" : "Doubles"}` : ""}
+          {slot.label ? ` · ${slot.label}` : slot.format ? ` · ${slot.format === "singles" ? "Singles" : "Doubles"}` : ""}
         </span>
         <span className={status === "live" ? "font-semibold text-live" : ""}>{STATUS[status]}</span>
       </div>
@@ -210,16 +214,21 @@ function SlotCard({
           )}
         </div>
       ))}
-      {access && !match && !muted && (
+      {access && !match && !muted && slot.letters && !slot.players && (
+        <p className="mt-2 text-xs text-muted">Players are filled in once both captains give their letters above.</p>
+      )}
+      {access && !match && !muted && (!slot.letters || slot.players) && (
         <div className="mt-2 flex gap-2">
           {slot.players ? (
             <>
               <button type="button" onClick={onStart} className="flex-1 rounded-lg bg-foreground py-2 text-sm font-semibold text-background">
                 Start match
               </button>
-              <button type="button" onClick={onLineup} className="rounded-lg border border-border px-3 text-sm">
-                Change line-up
-              </button>
+              {!slot.letters && (
+                <button type="button" onClick={onLineup} className="rounded-lg border border-border px-3 text-sm">
+                  Change line-up
+                </button>
+              )}
             </>
           ) : (
             <button type="button" onClick={onLineup} className="flex-1 rounded-lg bg-foreground py-2 text-sm font-semibold text-background">
@@ -250,6 +259,7 @@ function LineupSheet({
   const [picks, setPicks] = useState<Record<SideKey, string[]>>(slot.players ?? { A: [], B: [] });
   const [error, setError] = useState<string | null>(null);
   const size = format === "singles" ? 1 : 2;
+  const fixedFormat = !!tie.system && !!slot.format;
 
   function toggle(side: SideKey, id: string) {
     setPicks((prev) => {
@@ -263,22 +273,26 @@ function LineupSheet({
   const save = (andStart: boolean) => setError(onSave(format, picks, andStart));
 
   return (
-    <Sheet title={`Match ${index + 1}: line-up`} onClose={onClose}>
-      <div className="grid grid-cols-2 gap-2">
-        {(["singles", "doubles"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => {
-              setFormat(f);
-              setPicks((prev) => ({ A: prev.A.slice(0, f === "singles" ? 1 : 2), B: prev.B.slice(0, f === "singles" ? 1 : 2) }));
-            }}
-            className={`rounded-lg border py-2 text-sm ${format === f ? "border-foreground font-semibold" : "border-border text-muted"}`}
-          >
-            {f === "singles" ? "Singles" : "Doubles"}
-          </button>
-        ))}
-      </div>
+    <Sheet title={`Match ${index + 1}: ${slot.label ?? "line-up"}`} onClose={onClose}>
+      {fixedFormat ? (
+        <p className="text-sm text-muted">{format === "singles" ? "Singles" : "Doubles"} in this format.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {(["singles", "doubles"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => {
+                setFormat(f);
+                setPicks((prev) => ({ A: prev.A.slice(0, f === "singles" ? 1 : 2), B: prev.B.slice(0, f === "singles" ? 1 : 2) }));
+              }}
+              className={`rounded-lg border py-2 text-sm ${format === f ? "border-foreground font-semibold" : "border-border text-muted"}`}
+            >
+              {f === "singles" ? "Singles" : "Doubles"}
+            </button>
+          ))}
+        </div>
+      )}
       {(["A", "B"] as const).map((side) => (
         <div key={side} className="mt-4">
           <p className={`mb-1.5 text-sm font-semibold ${sideText[side]}`}>
@@ -313,5 +327,90 @@ function LineupSheet({
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/** ITTF systems: each captain gives letters (A, B, C / X, Y, Z) to players; the singles follow from them. */
+function LettersPanel({
+  tie,
+  access,
+  user,
+  setError,
+}: {
+  tie: Tie;
+  access: boolean;
+  user: string | null;
+  setError: (e: string | null) => void;
+}) {
+  const system = tieSystem(tie.system)!;
+  const [editing, setEditing] = useState<SideKey | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const name = (side: SideKey, id?: string) => tie.teams[side].players.find((p) => p.id === id)?.name;
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-4">
+      <h2 className="font-semibold">Team letters</h2>
+      <p className="mt-0.5 text-xs text-muted">Decided by lot: {tie.teams.A.name} use {system.letters!.A.join(", ")}, {tie.teams.B.name} use {system.letters!.B.join(", ")}.</p>
+      {(["A", "B"] as const).map((side) => {
+        const current = tie.letters?.[side] ?? {};
+        const given = system.letters![side].every((l) => current[l]);
+        return (
+          <div key={side} className="mt-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className={`text-sm font-semibold ${sideText[side]}`}>{tie.teams[side].name}</p>
+              {access && editing !== side && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft({ ...current });
+                    setEditing(side);
+                  }}
+                  className="rounded-lg border border-border px-3 py-1 text-sm"
+                >
+                  {given ? "Change" : "Give letters"}
+                </button>
+              )}
+            </div>
+            {editing === side ? (
+              <div className="mt-2 space-y-2">
+                {system.letters![side].map((letter) => (
+                  <label key={letter} className="flex items-center gap-2">
+                    <span className="w-6 font-bold">{letter}</span>
+                    <select value={draft[letter] ?? ""} onChange={(e) => setDraft((d) => ({ ...d, [letter]: e.target.value }))} aria-label={`${tie.teams[side].name} player ${letter}`}>
+                      <option value="">Choose a player…</option>
+                      {tie.teams[side].players.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setEditing(null)} className="rounded-lg border border-border py-2 text-sm">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const err = runTieAction(tie.id, (t) => ({ item: setLetters(t, user!, side, draft) }));
+                      setError(err);
+                      if (!err) setEditing(null);
+                    }}
+                    className="rounded-lg bg-foreground py-2 text-sm font-semibold text-background"
+                  >
+                    Save letters
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm text-muted">
+                {given ? system.letters![side].map((l) => `${l}: ${name(side, current[l])}`).join(" · ") : "Not given yet"}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-import { activeEvents, computeState, matchState, rulesResolver } from "./engine";
+import { activeEvents, computeState, decidingTossDue, matchState, rulesResolver } from "./engine";
 import { describePoint } from "./commentary";
 import { describeOutcome } from "./outcome";
 export { describeOutcome };
@@ -134,6 +134,22 @@ export function setToss(match: Match, by: string, toss: Toss): Match {
   } else requireAccess(match, by);
   if (!["A", "B"].includes(toss.firstServer) || !["A", "B"].includes(toss.left)) throw new MutationError("Choose who serves first.");
   return { ...match, toss: { ...toss } };
+}
+
+/** Records the new toss before the deciding set (volleyball): who serves first and which side starts on the left. */
+export function setDecidingToss(match: Match, by: string, firstServer: SideKey, left: SideKey): Match {
+  if (match.status !== "live") throw new MutationError("The match isn't in progress.");
+  if (!isOrganiser(match, by)) requireActiveScorer(match, by);
+  if (!match.toss) throw new MutationError("Record the match toss first.");
+  const state = matchState(match);
+  const set = state.sets[state.currentSet];
+  const inDeciding = state.currentSet + 1 === state.rules.bestOf && set.A + set.B === 0;
+  if (!decidingTossDue(match, state) && !(match.toss.deciding && inDeciding)) {
+    throw new MutationError("The deciding-set toss is taken just before that set starts.");
+  }
+  if (!["A", "B"].includes(firstServer) || !["A", "B"].includes(left)) throw new MutationError("Choose who serves first.");
+  const updated = { ...match, toss: { ...match.toss, deciding: { firstServer, left } } };
+  return audit(updated, "toss", by, `New toss for the deciding set: ${match.sides[firstServer].name} to serve`);
 }
 
 /** Gives another person scoring access. Any scorer can do this, e.g. before their battery runs out. */

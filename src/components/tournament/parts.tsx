@@ -10,11 +10,12 @@ import {
   isByeFixture,
   resolveSides,
   roundName,
-  standings,
+  tableFor,
   type Data,
 } from "@/lib/tournament/engine";
 import { fixtureLabel } from "@/lib/tournament/mutations";
 import { formatSchedule } from "@/lib/tournament/schedule";
+import { RANKINGS } from "@/lib/tournament/ranking";
 import type { Fixture, Group, Tournament } from "@/lib/tournament/types";
 
 export const entryName = (t: Tournament, id?: string) => (id ? (t.entries.find((e) => e.id === id)?.name ?? "?") : undefined);
@@ -31,7 +32,9 @@ export function PointsTable({
   data: Data;
   qualify: number;
 }) {
-  const rows = standings(group, t.fixtures, data, t.points);
+  const rows = tableFor(t, group, data);
+  const ranking = RANKINGS[t.ranking ?? "custom"];
+  const showPoints = ranking.key !== "bwf"; // BWF ranks on wins alone
   const ties = !!t.tieMatchCount;
   const setLabel = ties ? "Match" : SPORTS[t.sport].setLabel;
   return (
@@ -51,25 +54,33 @@ export function PointsTable({
             <th className="w-12 font-medium" title={ties ? "Matches won – lost" : `${setLabel}s won – lost`}>
               {ties ? "MD" : `${setLabel.slice(0, 1)}D`}
             </th>
-            <th className="w-12 pr-4 text-right font-medium" title="Points">
-              Pts
-            </th>
+            {showPoints && (
+              <th className="w-12 pr-4 text-right font-medium" title="Points">
+                Pts
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.entryId} className={`border-t border-border ${i < qualify ? "bg-accent/10" : ""}`}>
+            <tr key={r.entryId} className={`border-t border-border ${i < qualify && !r.withdrawn ? "bg-accent/10" : ""} ${r.withdrawn ? "text-muted" : ""}`}>
               <td className="py-2 pl-4 text-muted">{i + 1}</td>
-              <td className="truncate py-2 font-medium">{entryName(t, r.entryId)}</td>
+              <td className="truncate py-2 font-medium">
+                {entryName(t, r.entryId)}
+                {r.withdrawn && <span className="block text-xs font-normal">Withdrew: results deleted</span>}
+              </td>
               <td className="text-center">{r.played}</td>
               <td className="text-center">{r.won}</td>
               <td className="text-center">{r.lost}</td>
               <td className="text-center">{signed(r.setsFor - r.setsAgainst)}</td>
-              <td className="pr-4 text-right font-bold">{r.points}</td>
+              {showPoints && <td className="pr-4 text-right font-bold">{r.points}</td>}
             </tr>
           ))}
         </tbody>
       </table>
+      <p className="border-t border-border px-4 py-2 text-xs text-muted">
+        {ranking.label}: {ranking.order}
+      </p>
     </div>
   );
 }

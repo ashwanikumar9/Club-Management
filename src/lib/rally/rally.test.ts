@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildCommentary } from "./commentary";
-import { matchState } from "./engine";
+import { decidingTossDue, intervalDue, matchState } from "./engine";
+import { RULE_PRESETS, matchingPreset } from "./presets";
 import {
   addPoint,
   changeRules,
@@ -15,6 +16,7 @@ import {
   removeScorer,
   reopenMatch,
   setOutcome,
+  setDecidingToss,
   setToss,
   setLatestPointDetail,
   startMatch,
@@ -450,5 +452,50 @@ describe("toss, serving and ends", () => {
     m = score(m, "A");
     expect(() => setToss(m, ORG, { firstServer: "A", left: "A" })).toThrow(/before the first point/);
     expect(state(score(newMatch(), "AB")).server).toBeNull(); // no toss, no tracking
+  });
+});
+
+describe("official presets, intervals and the deciding-set toss", () => {
+  it("keeps 21-point badminton as the default preset", () => {
+    expect(RULE_PRESETS.badminton[0].rules).toEqual(SPORTS.badminton.rules);
+    expect(matchingPreset("badminton", SPORTS.badminton.rules)?.key).toBe("bwf_21");
+    expect(matchingPreset("table_tennis", SPORTS.table_tennis.rules)?.key).toBe("ittf_5");
+    expect(matchingPreset("volleyball", SPORTS.volleyball.rules)?.key).toBe("fivb_5");
+  });
+
+  it("beach volleyball changes ends every 7 points, and every 5 in the deciding set", () => {
+    const beach = RULE_PRESETS.volleyball.find((p) => p.key === "beach")!.rules;
+    let m = changeRules(newMatch("volleyball", "team"), beach, ORG);
+    m = setToss(m, ORG, { firstServer: "A", left: "A" });
+    m = score(m, "AAAAAAA");
+    expect(state(m).points.at(-1)!.endsChanged).toBe(true);
+    expect(state(m).left).toBe("B");
+    m = score(m, "AAAAAAA"); // 14 points: second switch
+    expect(state(m).left).toBe("A");
+  });
+
+  it("asks for a new toss before the volleyball deciding set and uses it", () => {
+    const short = { ...SPORTS.volleyball.rules, bestOf: 3 };
+    let m = changeRules(newMatch("volleyball", "team"), short, ORG);
+    m = setToss(m, ORG, { firstServer: "A", left: "A" });
+    m = score(m, "A".repeat(25) + "B".repeat(25)); // 1–1
+    expect(decidingTossDue(m, state(m))).toBe(true);
+    m = setDecidingToss(m, ORG, "B", "B");
+    expect(decidingTossDue(m, state(m))).toBe(false);
+    expect(state(m).server).toBe("B");
+    expect(state(m).left).toBe("B");
+    m = score(m, "A");
+    expect(() => setDecidingToss(m, ORG, "A", "A")).toThrow(/just before that set/);
+  });
+
+  it("reminds the scorer of the badminton interval at 11 and between games", () => {
+    let m = score(newMatch(), "A".repeat(10));
+    expect(intervalDue(m, state(m))).toBeNull();
+    m = score(m, "A");
+    expect(intervalDue(m, state(m))).toEqual({ seconds: 60, between: false });
+    m = score(m, "B");
+    expect(intervalDue(m, state(m))).toBeNull();
+    m = score(m, "A".repeat(10));
+    expect(intervalDue(m, state(m))).toEqual({ seconds: 120, between: true });
   });
 });

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RulesFields } from "@/components/RulesFields";
+import { SystemPicker } from "@/components/SystemPicker";
 import { MutationError } from "@/lib/rally/mutations";
 import { SPORTS } from "@/lib/rally/sports";
 import type { RallyRules, SideKey } from "@/lib/rally/types";
@@ -41,6 +42,7 @@ export function TieForm() {
     A: { name: "", players: emptyRows(4) },
     B: { name: "", players: emptyRows(4) },
   });
+  const [system, setSystem] = useState("");
   const [matchCount, setMatchCount] = useState(5);
   const [mode, setMode] = useState<LineupMode>("at_start");
   const [lineups, setLineups] = useState<Lineup[]>(defaultLineups(5));
@@ -92,9 +94,10 @@ export function TieForm() {
           B: { name: teams.B.name, players: teams.B.players },
         },
         matchCount,
+        system: system || undefined,
         lineupMode: mode,
         lineups:
-          mode === "advance"
+          mode === "advance" && !system
             ? lineups.map((l) => ({ format: l.format, A: l.A.map((r) => position("A", r)), B: l.B.map((r) => position("B", r)) }))
             : undefined,
         organiser: user!,
@@ -128,6 +131,7 @@ export function TieForm() {
             onClick={() => {
               setSport(s);
               setRules(SPORTS[s].rules);
+              setSystem("");
             }}
             className={`rounded-xl border px-2 py-3 text-sm font-semibold ${sport === s ? "border-foreground bg-foreground text-background" : "border-border bg-surface"}`}
           >
@@ -167,84 +171,91 @@ export function TieForm() {
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Number of matches</span>
-          <select value={matchCount} onChange={(e) => setCount(Number(e.target.value))}>
-            {[1, 3, 5, 7, 9].map((n) => (
-              <option key={n} value={n}>
-                {n} {n === 1 ? "match" : `matches (first to ${Math.floor(n / 2) + 1} wins)`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <span className="mb-1 block text-sm font-medium">Are all the match-ups decided?</span>
-          <div className="grid grid-cols-2 gap-2">
-            {(
-              [
-                ["advance", "Yes, enter them now"],
-                ["at_start", "No, pick at each match"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setMode(key)}
-                className={`rounded-lg border py-2 text-sm ${mode === key ? "border-foreground font-semibold" : "border-border text-muted"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1 text-xs text-muted">
-            {mode === "at_start"
-              ? "When a match starts, the scorer chooses singles or doubles and picks the starting players from each team."
-              : "Choose singles or doubles and the players for every match. They can still be changed before each match starts."}
-          </p>
-        </div>
-
-        {mode === "advance" &&
-          lineups.map((l, index) => (
-            <div key={index} className="rounded-xl border border-border p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">Match {index + 1}</span>
-                <select
-                  className="!w-auto text-sm"
-                  value={l.format}
-                  onChange={(e) =>
-                    setLineups((prev) => prev.map((x, i) => (i === index ? { format: e.target.value as Lineup["format"], A: [], B: [] } : x)))
-                  }
-                  aria-label={`Match ${index + 1} format`}
-                >
-                  <option value="singles">Singles</option>
-                  <option value="doubles">Doubles</option>
-                </select>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {(["A", "B"] as const).map((side) => (
-                  <div key={side} className="space-y-1">
-                    {Array.from({ length: l.format === "singles" ? 1 : 2 }, (_, slot) => (
-                      <select
-                        key={slot}
-                        value={l[side][slot] ?? ""}
-                        onChange={(e) => choose(index, side, slot, e.target.value)}
-                        aria-label={`Match ${index + 1} ${teams[side].name || `Team ${side}`} player ${slot + 1}`}
-                        className="text-sm"
-                      >
-                        <option value="">{teams[side].name || `Team ${side}`}…</option>
-                        {named(side).map((p) => (
-                          <option key={p.i} value={p.i}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+        <h2 className="font-semibold">Format</h2>
+        <SystemPicker sport={sport} value={system} onChange={setSystem} />
       </section>
+
+      {!system && (
+        <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Number of matches</span>
+            <select value={matchCount} onChange={(e) => setCount(Number(e.target.value))}>
+              {[1, 3, 5, 7, 9].map((n) => (
+                <option key={n} value={n}>
+                  {n} {n === 1 ? "match" : `matches (first to ${Math.floor(n / 2) + 1} wins)`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div>
+            <span className="mb-1 block text-sm font-medium">Are all the match-ups decided?</span>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["advance", "Yes, enter them now"],
+                  ["at_start", "No, pick at each match"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setMode(key)}
+                  className={`rounded-lg border py-2 text-sm ${mode === key ? "border-foreground font-semibold" : "border-border text-muted"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {mode === "at_start"
+                ? "When a match starts, the scorer chooses singles or doubles and picks the starting players from each team."
+                : "Choose singles or doubles and the players for every match. They can still be changed before each match starts."}
+            </p>
+          </div>
+
+          {mode === "advance" &&
+            lineups.map((l, index) => (
+              <div key={index} className="rounded-xl border border-border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold">Match {index + 1}</span>
+                  <select
+                    className="!w-auto text-sm"
+                    value={l.format}
+                    onChange={(e) =>
+                      setLineups((prev) => prev.map((x, i) => (i === index ? { format: e.target.value as Lineup["format"], A: [], B: [] } : x)))
+                    }
+                    aria-label={`Match ${index + 1} format`}
+                  >
+                    <option value="singles">Singles</option>
+                    <option value="doubles">Doubles</option>
+                  </select>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {(["A", "B"] as const).map((side) => (
+                    <div key={side} className="space-y-1">
+                      {Array.from({ length: l.format === "singles" ? 1 : 2 }, (_, slot) => (
+                        <select
+                          key={slot}
+                          value={l[side][slot] ?? ""}
+                          onChange={(e) => choose(index, side, slot, e.target.value)}
+                          aria-label={`Match ${index + 1} ${teams[side].name || `Team ${side}`} player ${slot + 1}`}
+                          className="text-sm"
+                        >
+                          <option value="">{teams[side].name || `Team ${side}`}…</option>
+                          {named(side).map((p) => (
+                            <option key={p.i} value={p.i}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+        </section>
+      )}
 
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-semibold">Details</h2>
@@ -255,7 +266,7 @@ export function TieForm() {
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Start time" />
         </div>
         <h3 className="pt-2 text-sm font-semibold">Match rules</h3>
-        <RulesFields rules={rules} setLabel={SPORTS[sport].setLabel} onChange={setRules} />
+        <RulesFields key={sport} rules={rules} setLabel={SPORTS[sport].setLabel} onChange={setRules} sport={sport} />
       </section>
 
       {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}

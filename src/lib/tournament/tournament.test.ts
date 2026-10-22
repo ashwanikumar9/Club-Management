@@ -16,6 +16,7 @@ import {
   startKnockout,
   syncTournament,
 } from "./mutations";
+import { TEMPLATES, suggestedSeeds } from "./presets";
 import type { Structure, Tournament } from "./types";
 
 const ORG = "@org";
@@ -306,5 +307,49 @@ describe("team-tie tournaments", () => {
     playTies();
     expect(champion(tour, { matches, ties })).toBe(final.teams.A.entryId);
     expect(tour.phase).toBe("complete");
+  });
+});
+
+describe("templates and official defaults", () => {
+  it("uses the sport's official ranking unless told otherwise", () => {
+    expect(tournament("league", []).ranking).toBe("bwf");
+  });
+
+  it("every template creates a valid tournament for each of its sports", () => {
+    for (const tpl of TEMPLATES) {
+      for (const sport of tpl.sports) {
+        const s = tpl.settings(sport);
+        const t = createTournament({
+          name: tpl.label,
+          sport,
+          format: s.team ? "team" : "singles",
+          venue: "",
+          startDate: "",
+          organiser: ORG,
+          rules: s.rules,
+          points: s.points,
+          ranking: s.ranking,
+          legs: s.legs,
+          structure: s.structure,
+          thirdPlace: s.thirdPlace,
+          tieSystem: s.tieSystem,
+        });
+        expect(t.ranking).toBe(s.ranking);
+        if (s.tieSystem) expect(t.tieMatchCount).toBe(5);
+      }
+    }
+  });
+
+  it("plays everyone twice, sides swapped, in a home-and-away league", () => {
+    let t = tournament("league", ["A", "B", "C", "D"]);
+    t = { ...t, legs: 2 };
+    const r = generateFixtures(t, ORG, D());
+    expect(r.tournament.fixtures).toHaveLength(12);
+    const pairs = r.created.map((m) => `${nameOf(t, m.sides.A.entryId)}${nameOf(t, m.sides.B.entryId)}`);
+    for (const p of pairs) expect(pairs).toContain(p.split("").reverse().join(""));
+  });
+
+  it("suggests the BWF number of seeds", () => {
+    expect([8, 16, 31, 32, 64].map(suggestedSeeds)).toEqual([2, 4, 4, 8, 16]);
   });
 });

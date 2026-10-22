@@ -1,4 +1,5 @@
 import type { MatchFormat, RallyRules, SportKey } from "../rally/types";
+import type { RankingKey } from "./ranking";
 
 export type Structure = "league" | "knockout" | "groups_knockout";
 
@@ -92,7 +93,11 @@ export interface Tournament {
   scorers: string[];
   rules: RallyRules;
   points: PointsConfig;
+  /** How group tables are ordered. Missing on older tournaments, which use "custom". */
+  ranking?: RankingKey;
   structure: Structure;
+  /** Times each pair meets in a league or group: 1, or 2 for home and away. Missing = 1. */
+  legs?: 1 | 2;
   /** Teams per group that go through to the knockout (groups → knockout only). */
   qualifiersPerGroup: number;
   /** Knockout includes a third-place match between the semi-final losers. */
@@ -102,6 +107,8 @@ export interface Tournament {
    * set on the tie page before each match.
    */
   tieMatchCount?: number;
+  /** Official team system for ties (see tie/systems.ts); overrides `tieMatchCount`. */
+  tieSystem?: string;
   entries: Entry[];
   /** Groups of the main structure. */
   groups: Group[];

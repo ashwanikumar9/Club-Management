@@ -228,7 +228,7 @@ export function NewMatchForm() {
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-semibold">Rules</h2>
         <p className="text-xs text-muted">Pre-filled with standard {config.name} rules. The scorer can still change them before the start and during the match.</p>
-        <RulesFields rules={rules} setLabel={config.setLabel} onChange={setRules} />
+        <RulesFields key={sport} rules={rules} setLabel={config.setLabel} onChange={setRules} sport={sport} />
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">

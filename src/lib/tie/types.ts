@@ -14,6 +14,10 @@ export interface TieTeam {
 export interface TieSlot {
   index: number;
   format?: "singles" | "doubles";
+  /** Name of the match in an official system, e.g. "1st singles" or "A v X". */
+  label?: string;
+  /** Singles match of a lettered system: the letters whose players meet. */
+  letters?: Record<SideKey, string>;
   /** Player ids from each team's list. */
   players?: Record<SideKey, string[]>;
   /** Created when the match is started. */
@@ -32,6 +36,10 @@ export interface Tie {
   rules: RallyRules;
   teams: Record<SideKey, TieTeam>;
   matchCount: number;
+  /** Official team system (see systems.ts); its matches have fixed formats and, for ITTF systems, letters. */
+  system?: string;
+  /** Letters each team gave its singles players (letter → player id). */
+  letters?: Partial<Record<SideKey, Record<string, string>>>;
   lineupMode: LineupMode;
   /** Play the remaining matches even after the tie is decided. */
   playAll: boolean;

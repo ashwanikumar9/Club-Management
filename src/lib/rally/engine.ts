@@ -54,6 +54,8 @@ export interface ServeTracking {
   firstServer: SideKey;
   left: SideKey;
   config: ServeConfig;
+  /** Result of a new toss before the deciding set, when the sport has one. */
+  deciding?: { firstServer: SideKey; left: SideKey };
 }
 
 /** Who serves the next rally of a set, given its score so far. */
@@ -85,6 +87,30 @@ export function setTarget(rules: RallyRules, setIndex: number): number {
 export function winsSet(own: number, opp: number, target: number, rules: RallyRules): boolean {
   if (rules.cap !== null && rules.cap >= target && own >= rules.cap && own > opp) return true;
   return own >= target && own - opp >= rules.winBy;
+}
+
+/** Whether the set in play is the deciding set and a new toss is still due before its first rally (volleyball). */
+export function decidingTossDue(match: Match, state: MatchState): boolean {
+  if (!SPORTS[match.sport].serve.decidingToss || !match.toss || match.toss.deciding || state.winner) return false;
+  const set = state.sets[state.currentSet];
+  return state.rules.bestOf > 1 && state.currentSet + 1 === state.rules.bestOf && set.A + set.B === 0;
+}
+
+/**
+ * The break due after the latest point, in seconds: between sets, or when the leader reaches half the target
+ * in sports with a mid-set interval (badminton: 60 s at 11). Null when none is due or the match is over.
+ */
+export function intervalDue(match: Match, state: MatchState): { seconds: number; between: boolean } | null {
+  const last = state.points.filter((p) => !p.ignored).at(-1);
+  if (!last || state.winner) return null;
+  const intervals = SPORTS[match.sport].intervals;
+  if (last.setWon) return { seconds: intervals.between, between: true };
+  if (!intervals.mid) return null;
+  const rules = rulesResolver(match)(last.setIndex);
+  const half = Math.ceil(setTarget(rules, last.setIndex) / 2);
+  const lead = Math.max(last.score.A, last.score.B);
+  const before = lead - (last.score[last.event.side] === lead ? last.event.points : 0);
+  return lead >= half && before < half ? { seconds: intervals.mid, between: false } : null;
 }
 
 export function activeEvents(events: ScoreEvent[]): ScoreEvent[] {
@@ -124,7 +150,7 @@ export function rulesResolver(match: Pick<Match, "rules" | "ruleChanges">): Rule
  */
 export function matchState(match: Match): MatchState {
   const tracking = match.toss
-    ? { firstServer: match.toss.firstServer, left: match.toss.left, config: SPORTS[match.sport].serve }
+    ? { firstServer: match.toss.firstServer, left: match.toss.left, config: SPORTS[match.sport].serve, deciding: match.toss.deciding }
     : undefined;
   const state = computeState(match.events, rulesResolver(match), tracking);
   if (!state.winner && match.status === "closed" && match.outcome?.winner) {
@@ -184,10 +210,14 @@ export function computeState(events: ScoreEvent[], rulesInput: RallyRules | Rule
       }
     }
 
-    // Ends change after every set, and once halfway through the deciding set.
+    // Ends change after every set, and once halfway through the deciding set (or every N points when set).
     let endsChanged = false;
+    const deciding = rules.bestOf > 1 && setIndex + 1 === rules.bestOf;
+    const every = deciding ? (rules.decidingSwitchEvery ?? rules.switchEvery) : rules.switchEvery;
     if (setWon && !matchWon) endsChanged = true;
-    else if (!setWon && rules.bestOf > 1 && setIndex + 1 === rules.bestOf) {
+    else if (!setWon && every) {
+      if ((set.A + set.B) % every === 0) endsChanged = true;
+    } else if (!setWon && deciding) {
       const half = serve?.config.midSwitch === "floor" ? Math.floor(target / 2) : Math.ceil(target / 2);
       if (leadBefore < half && Math.max(set.A, set.B) >= half) endsChanged = true;
     }
@@ -212,6 +242,11 @@ export function computeState(events: ScoreEvent[], rulesInput: RallyRules | Rule
       sets.push({ A: 0, B: 0, winner: null });
       setFirst = serve?.config.nextSet === "set_winner" ? setWon : other(setFirst);
       lastWinner = null;
+      const next = rulesFor(setIndex + 1);
+      if (serve?.deciding && setIndex + 2 === next.bestOf) {
+        setFirst = serve.deciding.firstServer;
+        left = serve.deciding.left;
+      }
     }
   }
 

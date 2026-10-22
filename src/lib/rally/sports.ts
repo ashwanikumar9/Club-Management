@@ -8,6 +8,16 @@ export interface ServeConfig {
   nextSet: "set_winner" | "alternate";
   /** In the deciding set, ends change when a side first reaches half the target, rounded up or down. */
   midSwitch: "ceil" | "floor";
+  /** A new toss decides service and ends of the deciding set (FIVB rule 7.1). */
+  decidingToss?: boolean;
+}
+
+/** Breaks the rules allow, in seconds. Shown to the scorer as reminders. */
+export interface Intervals {
+  /** When the leading side reaches half the target in a set (badminton: 60 s at 11). */
+  mid: number | null;
+  /** Between sets / games. */
+  between: number;
 }
 
 export interface SportConfig {
@@ -18,6 +28,7 @@ export interface SportConfig {
   formats: MatchFormat[];
   rules: RallyRules;
   serve: ServeConfig;
+  intervals: Intervals;
   actions: ActionDef[];
 }
 
@@ -38,6 +49,7 @@ export const SPORTS: Record<SportKey, SportConfig> = {
     formats: ["singles", "doubles", "team"],
     rules: { pointsPerSet: 21, bestOf: 3, winBy: 2, cap: 30, decidingSetPoints: 21 },
     serve: { rule: "rally_winner", nextSet: "set_winner", midSwitch: "ceil" },
+    intervals: { mid: 60, between: 120 },
     actions: [
       action("smash", "Great smash", "winner", [
         "{player} wins the point with a great smash",
@@ -71,6 +83,7 @@ export const SPORTS: Record<SportKey, SportConfig> = {
     formats: ["singles", "doubles", "team"],
     rules: { pointsPerSet: 11, bestOf: 5, winBy: 2, cap: null, decidingSetPoints: 11 },
     serve: { rule: "every_two", nextSet: "alternate", midSwitch: "floor" },
+    intervals: { mid: null, between: 60 },
     actions: [
       action("smash", "Smash", "winner", ["{player} smashes it away!", "Powerful smash from {player}"]),
       action("loop", "Loop / topspin winner", "winner", ["{player} wins it with a heavy topspin loop"]),
@@ -88,7 +101,8 @@ export const SPORTS: Record<SportKey, SportConfig> = {
     setLabel: "Set",
     formats: ["team"],
     rules: { pointsPerSet: 25, bestOf: 5, winBy: 2, cap: null, decidingSetPoints: 15 },
-    serve: { rule: "rally_winner", nextSet: "alternate", midSwitch: "ceil" },
+    serve: { rule: "rally_winner", nextSet: "alternate", midSwitch: "ceil", decidingToss: true },
+    intervals: { mid: null, between: 180 },
     actions: [
       action("kill", "Attack / spike kill", "winner", [
         "{player} hammers the spike down for {side}",

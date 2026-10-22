@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { addPoint, closeMatch, startMatch } from "../rally/mutations";
 import type { Match, SideKey } from "../rally/types";
-import { addTieScorer, createSlotMatch, createTie, setLineup, setPlayAll, tieState, type Matches } from "./tie";
+import { addTieScorer, createSlotMatch, createTie, setLetters, setLineup, setPlayAll, tieState, type Matches } from "./tie";
 import type { Tie } from "./types";
 
 const ORG = "@org";
@@ -122,5 +122,56 @@ describe("team ties", () => {
     const r = addTieScorer(made.tie, ORG, "@court1", { [made.match.id]: made.match });
     expect(r.tie.scorers).toEqual(["@court1"]);
     expect(r.matches[0].scorers.map((s) => s.user)).toEqual(["@court1"]);
+  });
+});
+
+describe("official team systems", () => {
+  function systemTie(system: string, sport: "badminton" | "table_tennis" = "table_tennis"): Tie {
+    return createTie({
+      sport,
+      title: "",
+      venue: "",
+      rules: QUICK,
+      teams: { A: team("Eagles", ["Riya", "Asha", "Meera"]), B: team("Hawks", ["Kiran", "Dev", "Yash"]) },
+      matchCount: 1,
+      system,
+      lineupMode: "advance",
+      organiser: ORG,
+    });
+  }
+
+  it("lays out Thomas Cup ties as S1, D1, S2, D2, S3 with fixed formats", () => {
+    const t = systemTie("thomas_uber", "badminton");
+    expect(t.matchCount).toBe(5);
+    expect(t.lineupMode).toBe("at_start");
+    expect(t.slots.map((s) => s.format)).toEqual(["singles", "doubles", "singles", "doubles", "singles"]);
+    expect(() => setLineup(t, ORG, 1, "singles", { A: [pid(t, "A", "Riya")], B: [pid(t, "B", "Dev")] }, {})).toThrow(/doubles in the Thomas/);
+  });
+
+  it("fills Swaythling singles from the captains' letters", () => {
+    let t = systemTie("swaythling");
+    t = setLetters(t, ORG, "A", { A: pid(t, "A", "Riya"), B: pid(t, "A", "Asha"), C: pid(t, "A", "Meera") });
+    expect(t.slots[0].players).toBeUndefined(); // team B's letters still missing
+    t = setLetters(t, ORG, "B", { X: pid(t, "B", "Kiran"), Y: pid(t, "B", "Dev"), Z: pid(t, "B", "Yash") });
+    expect(t.slots.map((s) => s.label)).toEqual(["A v X", "B v Y", "C v Z", "A v Y", "B v X"]);
+    expect(t.slots[3].players).toEqual({ A: [pid(t, "A", "Riya")], B: [pid(t, "B", "Dev")] });
+    expect(() => setLetters(t, ORG, "A", { A: pid(t, "A", "Riya"), B: pid(t, "A", "Riya") })).toThrow(/different player/);
+    expect(() => setLineup(t, ORG, 0, "singles", { A: [pid(t, "A", "Asha")], B: [pid(t, "B", "Dev")] }, {})).toThrow(/team letters/);
+  });
+
+  it("locks a letter once its match has started", () => {
+    let t = systemTie("corbillon");
+    t = setLetters(t, ORG, "A", { A: pid(t, "A", "Riya"), B: pid(t, "A", "Asha") });
+    t = setLetters(t, ORG, "B", { X: pid(t, "B", "Kiran"), Y: pid(t, "B", "Dev") });
+    ({ tie: t } = createSlotMatch(t, ORG, 0, {}));
+    expect(() => setLetters(t, ORG, "A", { A: pid(t, "A", "Meera"), B: pid(t, "A", "Asha") })).toThrow(/already started/);
+  });
+
+  it("allows at most two matches per player in the Olympic system", () => {
+    let t = systemTie("olympic");
+    t = setLetters(t, ORG, "A", { A: pid(t, "A", "Riya"), B: pid(t, "A", "Asha"), C: pid(t, "A", "Meera") });
+    t = setLetters(t, ORG, "B", { X: pid(t, "B", "Kiran"), Y: pid(t, "B", "Dev"), Z: pid(t, "B", "Yash") });
+    t = setLineup(t, ORG, 2, "doubles", { A: [pid(t, "A", "Meera"), pid(t, "A", "Riya")], B: [pid(t, "B", "Yash"), pid(t, "B", "Kiran")] }, {});
+    expect(() => setLineup(t, ORG, 3, "singles", { A: [pid(t, "A", "Riya")], B: [pid(t, "B", "Yash")] }, {})).toThrow(/Riya would play 3/);
   });
 });

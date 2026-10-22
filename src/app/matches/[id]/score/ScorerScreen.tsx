@@ -5,7 +5,7 @@ import { use, useState } from "react";
 import { CommentaryFeed, MatchGate, Scoreboard, matchSubtitle, sideBg, useMatchView } from "@/components/match-ui";
 import { Sheet } from "@/components/Sheet";
 import { describePoint, playerName } from "@/lib/rally/commentary";
-import { other, type MatchState } from "@/lib/rally/engine";
+import { decidingTossDue, intervalDue, other, type MatchState } from "@/lib/rally/engine";
 import { OutcomePicker } from "@/components/OutcomePicker";
 import { TossPanel } from "@/components/TossPanel";
 import { RulesFields } from "@/components/RulesFields";
@@ -17,6 +17,7 @@ import {
   closeMatch,
   hasScoringAccess,
   isOrganiser,
+  setDecidingToss,
   setLatestPointDetail,
   startMatch,
   undoLast,
@@ -194,6 +195,8 @@ function Scorer({
     );
   }
 
+  const interval = intervalDue(match, state);
+  const tossDue = decidingTossDue(match, state);
   const pendingSide = pending ? (pending.step === "who" && pending.credit === "error" ? other(pending.side) : pending.side) : null;
 
   return (
@@ -213,10 +216,17 @@ function Scorer({
           ⇄ Change of ends. The buttons have swapped to match the court.
         </p>
       )}
+      {interval && (
+        <p className="rounded-xl bg-surface-2 px-4 py-2 text-center text-sm">
+          ⏱ {interval.between ? `Interval between ${sport.setLabel.toLowerCase()}s` : "Interval"}: up to {formatSeconds(interval.seconds)}
+        </p>
+      )}
       {match.toss && !state.winner && state.points.length === 0 && (
         <p className="text-center text-xs text-muted">{match.sides[match.toss.firstServer].name} serves first</p>
       )}
-      {state.winner ? (
+      {tossDue ? (
+        <DecidingToss match={match} state={state} onConfirm={(server, left) => run((m) => setDecidingToss(m, by, server, left))} />
+      ) : state.winner ? (
         <div className="rounded-2xl border-2 border-accent bg-accent/10 p-4 text-center">
           <p className="font-bold">{match.sides[state.winner].name} wins the match</p>
           <p className="text-sm text-muted">Undo if the last point was a mistake, otherwise close the match to confirm the result.</p>
@@ -432,14 +442,7 @@ function RulesPanel({ match, state, by }: { match: Match; state: MatchState; by:
               ? `New rules apply to ${label.toLowerCase()} ${current} (in progress) and every later ${label.toLowerCase()}. Finished ${label.toLowerCase()}s keep their scores.`
               : "Set the rules for this match, e.g. a local points format or shorter games because of the weather. You can still change them during the match."}
           </p>
-          <RulesFields rules={draft} setLabel={label} onChange={setDraft} />
-          <button
-            type="button"
-            onClick={() => setDraft({ ...SPORTS[match.sport].rules })}
-            className="mt-3 text-sm text-muted underline"
-          >
-            Use standard {sport.name} rules
-          </button>
+          <RulesFields rules={draft} setLabel={label} onChange={setDraft} sport={match.sport} />
           {error && <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setDraft(null)} className="rounded-xl border border-border py-3 font-medium">
@@ -500,6 +503,53 @@ function SettingsBar({ match, by }: { match: Match; by: string }) {
       <Link href={`/matches/${match.id}/settings`} className="ml-auto font-medium text-side-a">
         Shot types ⚙
       </Link>
+    </div>
+  );
+}
+
+function formatSeconds(seconds: number) {
+  return seconds % 60 === 0 ? `${seconds / 60} min` : `${seconds} s`;
+}
+
+/** New toss before the deciding set (volleyball): the scorer records who serves and which side starts on the left. */
+function DecidingToss({
+  match,
+  state,
+  onConfirm,
+}: {
+  match: Match;
+  state: MatchState;
+  onConfirm: (server: SideKey, left: SideKey) => void;
+}) {
+  const [server, setServer] = useState<SideKey>(state.server ?? "A");
+  const [left, setLeft] = useState<SideKey>(state.left);
+  const choice = (value: SideKey, current: SideKey, set: (s: SideKey) => void) => (
+    <button
+      key={value}
+      type="button"
+      onClick={() => set(value)}
+      className={`truncate rounded-lg border px-2 py-2 text-sm ${current === value ? "border-2 border-foreground font-semibold" : "border-border bg-surface"}`}
+    >
+      {match.sides[value].name}
+    </button>
+  );
+  return (
+    <div className="space-y-3 rounded-2xl border-2 border-accent bg-accent/10 p-4">
+      <div>
+        <p className="font-bold">New toss for the deciding set</p>
+        <p className="text-sm text-muted">The rules call for a fresh toss before the deciding set. Record the result to continue.</p>
+      </div>
+      <div>
+        <p className="mb-1 text-sm font-medium">Serves first</p>
+        <div className="grid grid-cols-2 gap-2">{(["A", "B"] as const).map((s) => choice(s, server, setServer))}</div>
+      </div>
+      <div>
+        <p className="mb-1 text-sm font-medium">On your left</p>
+        <div className="grid grid-cols-2 gap-2">{(["A", "B"] as const).map((s) => choice(s, left, setLeft))}</div>
+      </div>
+      <button type="button" onClick={() => onConfirm(server, left)} className="w-full rounded-xl bg-accent py-3 font-bold text-white">
+        Start the deciding set
+      </button>
     </div>
   );
 }

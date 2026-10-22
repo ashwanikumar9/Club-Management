@@ -2,6 +2,7 @@ import { MutationError, addScorer, createMatch, newId } from "../rally/mutations
 import { validateRules } from "../rally/rules";
 import { SPORTS } from "../rally/sports";
 import type { Match, MatchFormat, RallyRules, SportKey } from "../rally/types";
+import { tieSystem } from "../tie/systems";
 import { createTie } from "../tie/tie";
 import type { Tie } from "../tie/types";
 import {
@@ -20,6 +21,7 @@ import {
   tournamentFinished,
   type Data,
 } from "./engine";
+import { OFFICIAL_RANKING, RANKINGS, type RankingKey } from "./ranking";
 import type { Entry, EntryPlayer, Fixture, PointsConfig, Structure, Tournament } from "./types";
 
 const now = () => new Date().toISOString();
@@ -34,11 +36,17 @@ export interface NewTournamentInput {
   organiser: string;
   rules: RallyRules;
   points: PointsConfig;
+  /** Group table order; defaults to the sport's official ranking. */
+  ranking?: RankingKey;
+  /** 2 = every pair in a league / group meets twice. */
+  legs?: 1 | 2;
   structure: Structure;
   thirdPlace?: boolean;
   courts?: string[];
   /** Matches per tie for badminton / table tennis team events. */
   tieMatchCount?: number;
+  /** Official team system for the ties. */
+  tieSystem?: string;
 }
 
 /** Whether fixtures are team ties (badminton / table tennis team events) rather than single matches. */
@@ -51,7 +59,9 @@ export function createTournament(input: NewTournamentInput): Tournament {
   const invalid = validateRules(input.rules);
   if (invalid) throw new MutationError(invalid);
   const ties = usesTies(input);
-  const tieMatchCount = input.tieMatchCount ?? 5;
+  const system = ties ? tieSystem(input.tieSystem) : undefined;
+  if (ties && input.tieSystem && system?.sport !== input.sport) throw new MutationError("Unknown team system for this sport.");
+  const tieMatchCount = system ? system.slots.length : (input.tieMatchCount ?? 5);
   if (ties && (!Number.isInteger(tieMatchCount) || tieMatchCount < 1 || tieMatchCount > 9 || tieMatchCount % 2 === 0)) {
     throw new MutationError("A tie has an odd number of matches between 1 and 9.");
   }
@@ -67,10 +77,13 @@ export function createTournament(input: NewTournamentInput): Tournament {
     courts: input.courts?.length ? input.courts : ["Court 1"],
     rules: { ...input.rules },
     points: { ...input.points },
+    ranking: input.ranking ?? OFFICIAL_RANKING[input.sport],
+    legs: input.legs === 2 ? 2 : 1,
     structure: input.structure,
     qualifiersPerGroup: 2,
     thirdPlace: input.thirdPlace ?? false,
     tieMatchCount: ties ? tieMatchCount : undefined,
+    tieSystem: system?.key,
     entries: [],
     groups: input.structure === "groups_knockout" ? makeGroups(2) : [],
     fixtures: [],
@@ -144,6 +157,20 @@ export function setGroupCount(t: Tournament, by: string, count: number): Tournam
   const groups = makeGroups(count).map((g, i) => (t.groups[i] ? { ...t.groups[i] } : g));
   // Entries from removed groups become unassigned.
   return { ...t, groups };
+}
+
+/** Changes how group tables are ordered (and the points for custom tables). Allowed at any time; tables are recalculated. */
+export function setRanking(t: Tournament, by: string, ranking: RankingKey, points?: PointsConfig): Tournament {
+  requireOrganiser(t, by);
+  if (!RANKINGS[ranking]) throw new MutationError("Unknown ranking.");
+  const next = points ?? t.points;
+  if (!Number.isInteger(next.win) || !Number.isInteger(next.loss) || next.win <= next.loss) {
+    throw new MutationError("Points for a win must be a whole number higher than points for a loss.");
+  }
+  if (t.phase === "knockout" || t.phase === "complete") {
+    if (t.structure === "groups_knockout") throw new MutationError("The knockout has been seeded from the group tables; the ranking can't change now.");
+  }
+  return { ...t, ranking, points: { ...next } };
 }
 
 export function setQualifiers(t: Tournament, by: string, perGroup: number): Tournament {
@@ -289,6 +316,7 @@ export function tieForFixture(t: Tournament, f: Fixture, a: string, b: string): 
     rules: t.rules,
     teams: { A: { name: ea.name, players: ea.players, entryId: a }, B: { name: eb.name, players: eb.players, entryId: b } },
     matchCount: t.tieMatchCount ?? 5,
+    system: t.tieSystem,
     lineupMode: "at_start",
     organiser: t.organiser,
     scorers: t.scorers,
@@ -351,7 +379,7 @@ export function generateFixtures(t: Tournament, by: string, data: Data): Created
       if (groups.length * t.qualifiersPerGroup < 2) throw new MutationError("At least two entries must qualify for the knockout.");
     }
     const fixtures: Fixture[] = groups.flatMap((g) =>
-      roundRobin(g.entryIds).flatMap((pairs, r) =>
+      legRounds(g.entryIds, t.legs ?? 1).flatMap((pairs, r) =>
         pairs.map(([a, b], i) => ({
           id: newId(),
           stage: "group" as const,
@@ -366,6 +394,21 @@ export function generateFixtures(t: Tournament, by: string, data: Data): Created
     next = { ...t, groups, fixtures, phase: "groups" };
   }
   return createReady(next, data);
+}
+
+/** Round-robin rounds; with two legs the second half repeats every pairing with sides swapped. */
+function legRounds(ids: string[], legs: number): [string, string][][] {
+  const first = roundRobin(ids);
+  if (legs < 2) return first;
+  return [...first, ...first.map((pairs) => pairs.map(([a, b]) => [b, a] as [string, string]))];
+}
+
+/** Sets how many times each pair meets in the league / groups (before fixtures are generated). */
+export function setLegs(t: Tournament, by: string, legs: 1 | 2): Tournament {
+  requireOrganiser(t, by);
+  requireSetup(t);
+  if (t.structure === "knockout") throw new MutationError("A knockout has no league rounds.");
+  return { ...t, legs };
 }
 
 /** Groups → knockout: once every group match has a result, seeds the qualifiers into the bracket. */

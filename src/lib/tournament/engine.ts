@@ -1,8 +1,11 @@
-import { matchState } from "../rally/engine";
+import { matchState, setsToWin } from "../rally/engine";
 import type { Match } from "../rally/types";
 import { tieState } from "../tie/tie";
 import type { Tie } from "../tie/types";
+import { rankGroup, type GroupResult, type RankingKey, type StandingRow } from "./ranking";
 import type { Entry, Fixture, Group, PointsConfig, Source, Tournament } from "./types";
+
+export type { StandingRow } from "./ranking";
 
 /**
  * Round-robin pairings using the circle method: every entry meets every other once, spread over rounds
@@ -153,11 +156,29 @@ export interface FixtureOutcome {
   winner: "A" | "B" | null;
   /** Sets won (match) or matches won (tie). */
   score: { A: number; B: number };
-  /** Points won (match) or games won (tie). */
+  /** Games won: sets for a match, games across all matches for a tie. */
+  games: { A: number; B: number };
+  /** Rally points won. */
   points: { A: number; B: number };
+  /** A single match that ended by retirement or walkover. */
+  kind?: "retired" | "walkover";
+  team: boolean;
+  /** Sets needed to win and points of a normal set (single matches). */
+  setsToWin: number;
+  setPoints: number;
 }
 
-const NONE: FixtureOutcome = { entries: {}, status: "none", winner: null, score: { A: 0, B: 0 }, points: { A: 0, B: 0 } };
+const NONE: FixtureOutcome = {
+  entries: {},
+  status: "none",
+  winner: null,
+  score: { A: 0, B: 0 },
+  games: { A: 0, B: 0 },
+  points: { A: 0, B: 0 },
+  team: false,
+  setsToWin: 1,
+  setPoints: 0,
+};
 
 export function fixtureOutcome(fixture: Fixture, data: Data): FixtureOutcome {
   if (fixture.tieId) {
@@ -170,7 +191,11 @@ export function fixtureOutcome(fixture: Fixture, data: Data): FixtureOutcome {
       status: state.complete ? "closed" : started ? "live" : "scheduled",
       winner: state.complete ? state.winner : null,
       score: state.score,
-      points: state.games,
+      games: state.games,
+      points: state.points,
+      team: true,
+      setsToWin: state.needed,
+      setPoints: 0,
     };
   }
   const match = fixture.matchId ? data.matches[fixture.matchId] : undefined;
@@ -181,7 +206,12 @@ export function fixtureOutcome(fixture: Fixture, data: Data): FixtureOutcome {
     status: match.status,
     winner: result.winner,
     score: result.sets,
+    games: result.sets,
     points: result.points,
+    kind: match.status === "closed" && (match.outcome?.type === "retired" || match.outcome?.type === "walkover") ? match.outcome.type : undefined,
+    team: false,
+    setsToWin: setsToWin(match.rules),
+    setPoints: match.rules.pointsPerSet,
   };
 }
 
@@ -217,65 +247,26 @@ export function isByeFixture(fixture: Fixture): boolean {
   return fixture.a.type === "bye" || fixture.b.type === "bye";
 }
 
-export interface StandingRow {
-  entryId: string;
-  played: number;
-  won: number;
-  lost: number;
-  points: number;
-  /** Sets (or tie matches) won and lost. */
-  setsFor: number;
-  setsAgainst: number;
-  /** Points (or tie games) won and lost. */
-  pointsFor: number;
-  pointsAgainst: number;
-}
-
-/** Points table for a group, sorted: points → head-to-head (two-way ties) → set difference → point difference. */
-export function standings(group: Group, fixtures: Fixture[], data: Data, config: PointsConfig): StandingRow[] {
-  const rows = new Map<string, StandingRow>(
-    group.entryIds.map((id) => [
-      id,
-      { entryId: id, played: 0, won: 0, lost: 0, points: 0, setsFor: 0, setsAgainst: 0, pointsFor: 0, pointsAgainst: 0 },
-    ]),
-  );
-  const headToHead = new Map<string, string>(); // "x|y" → winner
-
+/** Finished results of a group's fixtures, in the form the rankings read. */
+export function groupResults(group: Group, fixtures: Fixture[], data: Data): GroupResult[] {
+  const results: GroupResult[] = [];
   for (const fixture of fixtures) {
     if (fixture.groupId !== group.id) continue;
-    const result = fixtureOutcome(fixture, data);
-    if (!result.winner) continue; // only confirmed results count
-    for (const side of ["A", "B"] as const) {
-      const other = side === "A" ? "B" : "A";
-      const row = rows.get(result.entries[side] ?? "");
-      if (!row) continue;
-      row.played += 1;
-      const won = result.winner === side;
-      row.won += won ? 1 : 0;
-      row.lost += won ? 0 : 1;
-      row.points += won ? config.win : config.loss;
-      row.setsFor += result.score[side];
-      row.setsAgainst += result.score[other];
-      row.pointsFor += result.points[side];
-      row.pointsAgainst += result.points[other];
-    }
-    const [x, y] = [result.entries.A!, result.entries.B!].sort();
-    headToHead.set(`${x}|${y}`, result.entries[result.winner]!);
+    const o = fixtureOutcome(fixture, data);
+    if (!o.winner || !o.entries.A || !o.entries.B) continue; // only confirmed results count
+    results.push({ a: o.entries.A, b: o.entries.B, winner: o.winner, score: o.score, games: o.games, points: o.points, kind: o.kind, team: o.team, setsToWin: o.setsToWin, setPoints: o.setPoints });
   }
+  return results;
+}
 
-  const list = [...rows.values()];
-  return list.sort((p, q) => {
-    if (q.points !== p.points) return q.points - p.points;
-    const level = list.filter((r) => r.points === p.points);
-    if (level.length === 2) {
-      const [x, y] = [p.entryId, q.entryId].sort();
-      const winner = headToHead.get(`${x}|${y}`);
-      if (winner) return winner === p.entryId ? -1 : 1;
-    }
-    const setDiff = q.setsFor - q.setsAgainst - (p.setsFor - p.setsAgainst);
-    if (setDiff !== 0) return setDiff;
-    return q.pointsFor - q.pointsAgainst - (p.pointsFor - p.pointsAgainst);
-  });
+/** Points table for a group, ordered by the tournament's ranking (see ranking.ts). */
+export function standings(group: Group, fixtures: Fixture[], data: Data, config: PointsConfig, ranking: RankingKey = "custom"): StandingRow[] {
+  return rankGroup(group.entryIds, groupResults(group, fixtures, data), config, ranking);
+}
+
+/** The table for a group of this tournament, using its ranking. */
+export function tableFor(t: Tournament, group: Group, data: Data): StandingRow[] {
+  return standings(group, t.fixtures, data, t.points, t.ranking);
 }
 
 /**
@@ -284,7 +275,7 @@ export function standings(group: Group, fixtures: Fixture[], data: Data, config:
  * (e.g. two groups → A1 v B2 and B1 v A2).
  */
 export function qualifiers(t: Tournament, data: Data): string[] {
-  const tables = t.groups.map((g) => standings(g, t.fixtures, data, t.points));
+  const tables = t.groups.map((g) => tableFor(t, g, data));
   const ranked: string[] = [];
   for (let pos = 0; pos < t.qualifiersPerGroup; pos++) {
     for (const table of tables) if (table[pos]) ranked.push(table[pos].entryId);
@@ -306,7 +297,7 @@ export function finalFixture(t: Tournament, stageId?: string): Fixture | undefin
 export function champion(t: Tournament, data: Data): string | undefined {
   if (t.structure === "league") {
     if (!groupStageComplete(t, data) || t.groups.length === 0) return undefined;
-    return standings(t.groups[0], t.fixtures, data, t.points)[0]?.entryId;
+    return tableFor(t, t.groups[0], data)[0]?.entryId;
   }
   const final = finalFixture(t);
   return final ? fixtureWinner(final, t.fixtures, data) : undefined;
@@ -316,7 +307,7 @@ export function champion(t: Tournament, data: Data): string | undefined {
 export function podium(t: Tournament, data: Data): { first?: string; second?: string; third?: string } {
   if (t.structure === "league") {
     if (!groupStageComplete(t, data) || !t.groups[0]) return {};
-    const table = standings(t.groups[0], t.fixtures, data, t.points);
+    const table = tableFor(t, t.groups[0], data);
     return { first: table[0]?.entryId, second: table[1]?.entryId, third: table[2]?.entryId };
   }
   const final = finalFixture(t);

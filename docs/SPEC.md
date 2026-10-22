@@ -394,7 +394,9 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
    soon as both sides are known). Each fixture is a normal live-scored match; tournament scorers get
    access to all its matches
 5. **Points table** per group: played, won, lost, points, games won/lost, points scored/conceded.
-   Tie-breakers: points → head-to-head (two-way ties) → game difference → point difference
+   Ordered by the sport's **official ranking** by default (changeable at any time; see "Official rules and
+   templates" below), or **Custom**: organiser's points → head-to-head (two level) → game difference →
+   point difference
 6. **Advancement** — knockout winners move on automatically when a match is closed; if the organiser
    corrects a closed result, the next match is updated if it hasn't started yet
 
@@ -402,6 +404,37 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
    creating the tournament or at any time before it is set up; the podium shows 🏆 / 🥈 / 🥉
 8. **Team events** — for badminton / table tennis "team" entries, every fixture is a team tie (below);
    the points table counts ties won, then matches won/lost (MD), then games
+
+### Official rules and templates
+Sources: Laws of Badminton and BWF General Competition Regulations (GCR), ITTF Statutes 2025 (Laws 2.11–2.15,
+Regulations 3.7.5–3.7.7), FIVB Official Volleyball Rules 2025–2028, FIVB Event Regulations, FIVB Beach rules.
+
+- **Rule presets** on every rules form (match, tie, tournament, scorer's change of rules), marked
+  "Official" where they follow the laws; the numbers stay editable under "Customise the numbers":
+  - Badminton: best of 3 to 21 (cap 30, default), best of 3 to 15 (cap 21, BWF 3×15 system — available, not
+    the default), one game to 21, one game to 15
+  - Table tennis: best of 5 / 7 / 3 games to 11
+  - Volleyball: indoor best of 5 / 3 to 25 (deciding set 15), beach best of 3 to 21 (third set 15, change
+    ends every 7 points, every 5 in the third set)
+- **Rankings for group tables**:
+  - BWF (GCR 16): matches (ties) won; two level → their match; three or more → (ties: match difference)
+    game difference, point difference, with head-to-head whenever two remain; a player who retires or gives
+    a walkover has all group results deleted and is ranked last
+  - ITTF (3.7.5): 2 points for a win, 1 for a played loss, 0 for a walkover / retirement; level entries are
+    separated using only the matches between them (match points, then individual-match, game and point
+    ratios), starting again whenever some are separated
+  - FIVB: wins → match points (3-0 / 3-1 → 3:0, 3-2 → 2:1) → sets ratio → points ratio → head-to-head; a
+    forfeit counts 3-0 with 25-0 sets
+- **Official team systems** for ties: Thomas / Uber Cup (S, D, S, D, S), Sudirman Cup (XD, WS, MS, WD, MD),
+  ITTF Swaythling, Corbillon, Olympic (max two matches per player), best of 7 and best of 9. Lettered
+  systems: each captain gives letters (A, B, C / X, Y, Z) to players on the tie page and the singles fill in
+  automatically; a letter can't change once its match has started
+- **Tournament templates** for new organisers (every setting stays editable): Club night, Official
+  knockout, Championship (groups → knockout), Team championship, League season (home and away), Beach
+  volleyball. The form shows a one-line summary of what the organiser will get
+- **Guidance**: suggested number of seeds per BWF GCR 11.7 (2 / 4 / 8 / 16 for <16 / 16–31 / 32–63 / 64+
+  entries) and groups of about four
+- **Home and away**: leagues and groups can play every opponent twice (sides swapped in the second half)
 
 ### Toss, serving and change of ends
 - Before the start the scorer flips a coin in the app (or enters who won), records the winner's choice
@@ -412,6 +445,11 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
 - Ends change after every set and once halfway through the deciding set (badminton 11 of 21, table tennis
   5 of 11, volleyball 8 of 15); the scorer is told and the +1 buttons swap to match the court
 - Commentary announces the toss and changes of ends; the scoreboard marks the serving side
+- Volleyball: a **new toss before the deciding set** (FIVB 7.1) — the scorer records who serves and which
+  side starts on the left before its first rally
+- Optional "change ends every N points" (beach volleyball: 7, and 5 in the deciding set)
+- **Interval reminders** after the point that starts one: badminton 60 s when the leader reaches 11 and
+  120 s between games; table tennis 1 minute between games; volleyball 3 minutes between sets
 
 ### Scheduling
 - Tournaments list their **courts / tables**; every fixture can have a **date, time and court**, and the

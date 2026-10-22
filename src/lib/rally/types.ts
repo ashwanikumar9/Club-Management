@@ -17,6 +17,13 @@ export interface RallyRules {
   cap: number | null;
   /** Points needed to win the deciding (last possible) set. */
   decidingSetPoints: number;
+  /**
+   * Change ends every N points played in a set (beach volleyball: 7). Unset = ends change only between sets
+   * and halfway through the deciding set.
+   */
+  switchEvery?: number | null;
+  /** Change ends every N points in the deciding set (beach volleyball: 5). Unset = same as `switchEvery`. */
+  decidingSwitchEvery?: number | null;
 }
 
 /**
@@ -81,7 +88,7 @@ export interface ScoreEvent {
   deletedAt?: string;
 }
 
-export type AuditKind = "close" | "reopen" | "edit" | "insert" | "delete" | "rules" | "scorer";
+export type AuditKind = "close" | "reopen" | "edit" | "insert" | "delete" | "rules" | "scorer" | "toss";
 
 export interface AuditEntry {
   id: string;
@@ -141,6 +148,8 @@ export interface Toss {
   choice?: "serve" | "receive" | "side";
   firstServer: SideKey;
   left: SideKey;
+  /** New toss before the deciding set (volleyball): who serves first and who starts on the left in that set. */
+  deciding?: { firstServer: SideKey; left: SideKey };
 }
 
 export interface DetailSettings {

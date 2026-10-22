@@ -20,7 +20,9 @@ import {
   removeTournamentScorer,
   renameGroup,
   setGroupCount,
+  setLegs,
   setQualifiers,
+  setRanking,
   setSeed,
   setStructure,
   setThirdPlace,
@@ -28,7 +30,10 @@ import {
 } from "@/lib/tournament/mutations";
 import type { Fixture, Tournament } from "@/lib/tournament/types";
 import { runTournamentAction, updateTournament, useMatches, useTies, useTournament, useUser } from "@/lib/store";
-import { STRUCTURES } from "../new/TournamentForm";
+import { tieSystem } from "@/lib/tie/systems";
+import { suggestedGroups, suggestedSeeds } from "@/lib/tournament/presets";
+import { RANKINGS, type RankingKey } from "@/lib/tournament/ranking";
+import { STRUCTURES, rankingChoices } from "../new/TournamentForm";
 
 type Tab = "entries" | "groups" | "fixtures" | "schedule" | "bracket" | "rounds";
 
@@ -91,6 +96,9 @@ function View({ t, data }: { t: Tournament; data: Data }) {
         <h1 className="text-xl font-bold">{t.name}</h1>
         <p className="mt-0.5 text-xs text-muted">
           Organiser {t.organiser} · {describeRules(t.rules, sport.setLabel)}
+          {tieSystem(t.tieSystem) && ` · ${tieSystem(t.tieSystem)!.label} ties`}
+          {t.structure !== "knockout" && ` · ${RANKINGS[t.ranking ?? "custom"].label} table`}
+          {t.structure !== "knockout" && (t.legs ?? 1) === 2 && " · home and away"}
         </p>
       </div>
 
@@ -285,6 +293,19 @@ function EntriesTab({
             </button>
           ))}
         </div>
+      )}
+
+      {canEdit && t.structure !== "knockout" && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={(t.legs ?? 1) === 2} onChange={(e) => edit((x) => setLegs(x, user, e.target.checked ? 2 : 1))} />
+          Play each opponent twice (home and away)
+        </label>
+      )}
+      {canEdit && t.structure !== "league" && t.entries.length >= 4 && (
+        <Notice>
+          Official draws (BWF) seed {suggestedSeeds(t.entries.length)} of {t.entries.length} entries: give your strongest{" "}
+          {suggestedSeeds(t.entries.length)} seeds 1–{suggestedSeeds(t.entries.length)} so they can&rsquo;t meet early.
+        </Notice>
       )}
 
       <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
@@ -483,10 +504,22 @@ function GroupsTab({
   user: string;
 }) {
   const setup = t.phase === "setup";
+  const tableSettings = organiser && <TableSettings t={t} edit={edit} user={user} />;
 
   if (t.structure === "league") {
-    if (setup) return <Notice>Everyone plays everyone once. The table appears when fixtures are generated.</Notice>;
-    return <PointsTable t={t} group={t.groups[0]} data={data} qualify={0} />;
+    if (setup)
+      return (
+        <div className="space-y-4">
+          <Notice>Everyone plays everyone{(t.legs ?? 1) === 2 ? " twice" : " once"}. The table appears when fixtures are generated.</Notice>
+          {tableSettings}
+        </div>
+      );
+    return (
+      <div className="space-y-4">
+        <PointsTable t={t} group={t.groups[0]} data={data} qualify={0} />
+        {tableSettings}
+      </div>
+    );
   }
 
   if (!setup) {
@@ -495,6 +528,7 @@ function GroupsTab({
         {t.groups.map((g) => (
           <PointsTable key={g.id} t={t} group={g} data={data} qualify={t.qualifiersPerGroup} />
         ))}
+        {t.phase === "groups" && tableSettings}
       </div>
     );
   }
@@ -527,6 +561,11 @@ function GroupsTab({
               ))}
             </select>
           </label>
+          {t.entries.length >= 6 && (
+            <p className="col-span-2 text-xs text-muted">
+              Championships use groups of 3–4: for {t.entries.length} entries that&rsquo;s about {suggestedGroups(t.entries.length)} groups.
+            </p>
+          )}
           <button
             type="button"
             onClick={() => edit((x) => autoAssignGroups(x, user))}
@@ -536,6 +575,7 @@ function GroupsTab({
           </button>
         </div>
       )}
+      {tableSettings}
 
       {t.groups.map((g) => (
         <div key={g.id} className="rounded-2xl border border-border bg-surface p-4">
@@ -647,5 +687,48 @@ function FixturesTab({
         </section>
       ))}
     </div>
+  );
+}
+
+/** How tables are ordered: the sport's official ranking or custom points. Tables recalculate immediately. */
+function TableSettings({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tournament) => Tournament) => void; user: string }) {
+  const current = t.ranking ?? "custom";
+  const [win, setWin] = useState(String(t.points.win));
+  const [loss, setLoss] = useState(String(t.points.loss));
+  const choose = (key: RankingKey) => edit((x) => setRanking(x, user, key));
+  return (
+    <section className="space-y-2 rounded-2xl border border-border bg-surface p-4">
+      <h2 className="font-semibold">How the table is ranked</h2>
+      {rankingChoices(t.sport).map((key) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => choose(key)}
+          className={`block w-full rounded-xl border p-3 text-left ${current === key ? "border-2 border-foreground" : "border-border"}`}
+        >
+          <span className="font-semibold">{RANKINGS[key].label}</span>
+          <span className="mt-0.5 block text-xs text-muted">{RANKINGS[key].points}</span>
+        </button>
+      ))}
+      {current === "custom" && (
+        <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium">Win</span>
+            <input type="number" inputMode="numeric" value={win} onChange={(e) => setWin(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium">Loss</span>
+            <input type="number" inputMode="numeric" value={loss} onChange={(e) => setLoss(e.target.value)} />
+          </label>
+          <button
+            type="button"
+            onClick={() => edit((x) => setRanking(x, user, "custom", { win: Number(win), loss: Number(loss) }))}
+            className="rounded-lg border border-border px-3 py-2 text-sm font-medium"
+          >
+            Save
+          </button>
+        </div>
+      )}
+    </section>
   );
 }

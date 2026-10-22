@@ -8,6 +8,11 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 - **Tournaments** (CricHeroes-style): league, seeded knockout, or groups → knockout. Add entries and seeds,
   create groups and assign entries manually or automatically by seed, generate fixtures, follow points
   tables and the bracket; winners move on automatically and the champion is shown. Optional third-place match
+- **Official rules built in** (BWF, ITTF, FIVB): rule presets on every rules form, official group-table
+  rankings per sport (or custom points), official team systems (Thomas / Uber, Sudirman, Swaythling,
+  Corbillon, Olympic, best of 7 / 9 with captains' letters), beach volleyball side changes, the new toss
+  before a volleyball deciding set, interval reminders, and tournament templates for new organisers
+  (Club night, Official knockout, Championship, Team championship, League season, Beach)
 - **Editable fixtures and extra rounds**: re-pair, swap or delete fixtures before they start, add matches to
   groups, and add named rounds (round-robin, knockout or one-off matches) such as a Super 4 or a Plate
 - **Scheduling**: courts, date / time / court per fixture, auto-schedule with rest between matches,
@@ -82,6 +87,10 @@ change what. Step-by-step: [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md). T
 | `src/lib/tournament/engine.ts` | Round-robin, seeded brackets, groups, points tables, advancement |
 | `src/lib/tournament/mutations.ts` | Tournament setup, fixture generation, knockout start, sync with results |
 | `src/app/tournaments/[id]` | Tournament page: entries, groups / table, fixtures, bracket |
+| `src/lib/tournament/ranking.ts` | Official group rankings (BWF, ITTF, FIVB) and custom points |
+| `src/lib/tournament/presets.ts` | Tournament templates and seeding guidance |
+| `src/lib/rally/presets.ts` | Official and common rule presets per sport |
+| `src/lib/tie/systems.ts` | Official team-match systems |
 | `src/lib/tournament/rounds.ts` | Extra rounds and fixture editing |
 | `src/lib/tournament/schedule.ts` | Auto-scheduler, schedule import, bulk entries |
 | `src/lib/tie/tie.ts` | Team ties: line-ups, match creation, tie score and winner |
