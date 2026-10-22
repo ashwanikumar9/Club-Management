@@ -1,0 +1,111 @@
+export type SportKey = "badminton" | "table_tennis" | "volleyball";
+
+export type SideKey = "A" | "B";
+
+export type MatchFormat = "singles" | "doubles" | "team";
+
+export type MatchStatus = "scheduled" | "live" | "closed";
+
+export type Role = "scorer" | "organiser";
+
+export interface RallyRules {
+  /** Points needed to win a normal set/game. */
+  pointsPerSet: number;
+  /** Total sets in the match (best of N). */
+  bestOf: number;
+  /** Required lead to win a set (2 = win by 2). */
+  winBy: number;
+  /** First to reach the cap wins the set regardless of lead. Null = no cap. */
+  cap: number | null;
+  /** Points needed to win the deciding (last possible) set. */
+  decidingSetPoints: number;
+}
+
+/**
+ * Who earned the point:
+ * - "winner": the scoring side played a winning shot (asks "who" on the scoring side)
+ * - "error": the opponent made an error (asks "who" on the opponent side)
+ */
+export type ActionCredit = "winner" | "error";
+
+export interface ActionDef {
+  key: string;
+  label: string;
+  credit: ActionCredit;
+  /** Commentary templates. Placeholders: {player} {side} {opponent} {opponentSide} */
+  templates: string[];
+  enabled: boolean;
+}
+
+export interface Player {
+  id: string;
+  name: string;
+  jersey?: string;
+}
+
+export interface Side {
+  name: string;
+  players: Player[];
+}
+
+/** Snapshot of the action at the time it was recorded, so later catalogue edits don't rewrite history. */
+export interface ActionSnapshot {
+  key: string;
+  label: string;
+  credit: ActionCredit;
+  template: string;
+}
+
+export interface ScoreEvent {
+  id: string;
+  /** Sort position in the log; fractional values allow inserting points after close. */
+  order: number;
+  side: SideKey;
+  points: number;
+  action?: ActionSnapshot;
+  /** Player credited: on the scoring side for winners, on the opponent side for errors. */
+  actorId?: string;
+  note?: string;
+  createdAt: string;
+  createdBy: string;
+  undoneAt?: string;
+  undoneBy?: string;
+  deletedAt?: string;
+}
+
+export type AuditKind = "close" | "reopen" | "edit" | "insert" | "delete";
+
+export interface AuditEntry {
+  id: string;
+  at: string;
+  by: string;
+  kind: AuditKind;
+  eventId?: string;
+  summary: string;
+}
+
+export interface DetailSettings {
+  askHow: boolean;
+  askWho: boolean;
+}
+
+export interface Match {
+  id: string;
+  sport: SportKey;
+  title: string;
+  venue: string;
+  livestreamUrl: string;
+  format: MatchFormat;
+  rules: RallyRules;
+  actions: ActionDef[];
+  settings: DetailSettings;
+  sides: Record<SideKey, Side>;
+  status: MatchStatus;
+  createdAt: string;
+  startedAt?: string;
+  closedAt?: string;
+  closedBy?: string;
+  events: ScoreEvent[];
+  history: AuditEntry[];
+  version: number;
+}
