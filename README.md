@@ -9,7 +9,7 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 - Scorer sets the rules before the start and can change them at any time during the match
   (e.g. shorter games because of weather); changes apply from the current set and are announced
 - One active scorer at a time. Anyone with scoring access can request a take-over: the scorer gets 15
-  seconds to allow or decline, and silence (e.g. a dead phone) passes scoring over automatically. Any scorer
+  seconds to allow or decline, and silence (e.g. a dead phone) passes scoring over automatically. The organiser takes over immediately without asking. Any scorer
   can give access to someone else by mobile number (with country code), email or username
 - Point-by-point scoring with big `+1` buttons
 - Optional "how" (shot type) and "who" (player / jersey) prompts after each point, switchable mid-match

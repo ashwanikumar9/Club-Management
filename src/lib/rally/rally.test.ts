@@ -319,6 +319,23 @@ describe("scoring access and control", () => {
     expect(settleTakeover(m, after(20)).activeScorer).toBe("@third");
   });
 
+  it("lets the organiser take over at once without asking, overriding a pending request", () => {
+    let m = requestTakeover(addScorer(withScorer(), ORG, BACKUP), BACKUP, t0);
+    m = requestTakeover(m, ORG, after(1));
+    expect(m.activeScorer).toBe(ORG);
+    expect(m.takeoverRequest?.status).toBe("cancelled");
+    expect(settleTakeover(m, after(30)).activeScorer).toBe(ORG);
+    expect(m.history.at(-1)?.summary).toBe("Organiser @org took over scoring from +919876543210");
+  });
+
+  it("lets the organiser replace a scorer who keeps declining", () => {
+    let m = addScorer(withScorer(), ORG, BACKUP);
+    m = removeScorer(m, ORG, SCORER); // no permission needed
+    m = addScorer(m, ORG, "@newscorer");
+    m = requestTakeover(m, "@newscorer"); // nobody is scoring, so control is immediate
+    expect(m.activeScorer).toBe("@newscorer");
+  });
+
   it("refuses scorers without access and duplicate access", () => {
     const m = newMatch();
     expect(() => addScorer(m, "@stranger", SCORER)).toThrow(/don't have scoring access/);

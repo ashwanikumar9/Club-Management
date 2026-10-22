@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   TAKEOVER_SECONDS,
   cancelTakeover,
+  isOrganiser,
   pendingTakeover,
   requestTakeover,
   respondToTakeover,
@@ -87,6 +88,31 @@ export function TakeoverCard({ match, user }: { match: Match; user: string }) {
   const run = (mutation: (m: Match) => Match) => setError(updateMatch(match.id, mutation));
   const myPending = pending?.from === user;
   const declined = request?.status === "declined" && request.from === user && request.to === match.activeScorer;
+
+  if (isOrganiser(match, user)) {
+    return (
+      <div className="rounded-2xl border-2 border-border bg-surface p-4">
+        <p className="font-semibold">
+          {match.activeScorer ? `${match.activeScorer} is scoring this match` : "Nobody is scoring right now"}
+        </p>
+        <p className="mt-1 text-sm text-muted">
+          {pending
+            ? `${pending.from} has asked to take over. `
+            : ""}
+          As organiser you can take over immediately; the current scorer is not asked. You can also remove a scorer
+          or add another one below.
+        </p>
+        <button
+          type="button"
+          onClick={() => run((m) => requestTakeover(m, user))}
+          className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background"
+        >
+          Take over now
+        </button>
+        {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border-2 border-border bg-surface p-4">

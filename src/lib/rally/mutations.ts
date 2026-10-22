@@ -154,8 +154,9 @@ function voidTakeover(match: Match, at: Date = new Date()): Match {
 }
 
 /**
- * Asks to take over scoring. With nobody scoring, control is taken immediately. Otherwise the active
- * scorer gets TAKEOVER_SECONDS to allow or decline; silence counts as allowing (see settleTakeover).
+ * Asks to take over scoring. With nobody scoring, or when the organiser asks, control is taken immediately.
+ * Otherwise the active scorer gets TAKEOVER_SECONDS to allow or decline; silence counts as allowing
+ * (see settleTakeover).
  */
 export function requestTakeover(match: Match, by: string, at: Date = new Date()): Match {
   requireAccess(match, by);
@@ -163,6 +164,11 @@ export function requestTakeover(match: Match, by: string, at: Date = new Date())
   if (match.activeScorer === by) return match;
   if (!match.activeScorer) {
     return audit({ ...voidTakeover(match, at), activeScorer: by }, "scorer", by, `${by} took over scoring`);
+  }
+  if (isOrganiser(match, by)) {
+    // The organiser never needs permission; this also overrides any pending request.
+    const taken = { ...voidTakeover(match, at), activeScorer: by };
+    return audit(taken, "scorer", by, `Organiser ${by} took over scoring from ${match.activeScorer}`);
   }
   const pending = pendingTakeover(match);
   if (pending) {

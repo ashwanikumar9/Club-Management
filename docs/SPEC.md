@@ -107,11 +107,14 @@ database is connected). Identities are normalised so the same person always matc
     score with full control, including undo
   - One pending request at a time; the requester can cancel it; it is voided if control changes another way
   - If nobody is scoring, a person with access takes control immediately
+- **Organiser override:** the organiser never needs permission. They can take over scoring immediately
+  (the current scorer is not asked, and any pending request is cancelled), remove any scorer, and add
+  another one, e.g. when a scorer keeps declining requests
 - **Hand over:** the active scorer can pass control to another person with access
 - **Add a scorer:** the organiser **and any scorer** of the match can give access to another person by
   mobile number, email or username, e.g. when no second scorer was added and the scorer's battery is low
 - **Remove a scorer:** organiser only (also ends their control if they were scoring)
-- Whoever starts the match becomes the active scorer; the organiser can always take over
+- Whoever starts the match becomes the active scorer
 - Every add, removal, take-over and hand-over is recorded in the match change log
 
 ## 4. Core Architecture: Point-by-Point Event Log
