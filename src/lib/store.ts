@@ -513,7 +513,13 @@ export async function sendSignInCode(identity: string): Promise<string | null> {
   const { error } = identity.includes("@")
     ? await auth.signInWithOtp({ email: identity, options: { shouldCreateUser: true } })
     : await auth.signInWithOtp({ phone: identity, options: { shouldCreateUser: true } });
-  return error ? error.message : null;
+  if (!error) return null;
+  if (error.status === 429) return "Too many codes requested. Wait a minute and try again.";
+  if (error.status === 504 || error.status === 500) {
+    // The database's auth service couldn't hand the message to the email / SMS sender (SMTP settings).
+    return `The code couldn't be sent: the ${identity.includes("@") ? "email" : "SMS"} sender didn't accept it (error ${error.status}). Please try again later or tell the organiser.`;
+  }
+  return error.message;
 }
 
 export async function verifySignInCode(identity: string, code: string): Promise<string | null> {

@@ -175,6 +175,7 @@ by `supabase start` (Mailpit, usually <http://127.0.0.1:54324>).
 | What you see | What to do |
 |---|---|
 | No code email arrives | Check spam; check the SMTP details (step 3.2); the email service's dashboard shows whether it was sent |
+| "HTTP 504" / "the email sender didn't accept it" when sending a code | Supabase couldn't reach your SMTP server: check host `smtp-relay.brevo.com` and port **587** (not 25), the username is the **Login** on Brevo's SMTP tab and the password is the **SMTP key** (not your Brevo password or API key). The exact reason is in Supabase → **Logs → Auth** (address `…/logs/auth-logs`) |
 | Can't edit the email templates | Connect your own SMTP first (step 3.2) |
 | The email has a link instead of a code | The email template wasn't replaced; it must contain `{{ .Token }}` (step 3) |
 | "Couldn't save: … row-level security" | You're not the organiser or a scorer of that record, or step 2 wasn't run completely |
