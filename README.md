@@ -27,7 +27,13 @@ npm run dev      # http://localhost:3000
 npm test         # scoring engine tests
 ```
 
-To try it on a phone on the same Wi-Fi: `npm run dev -- -H 0.0.0.0` and open `http://<computer-ip>:3000`.
+To try it on a phone on the same Wi-Fi, run the production server (the dev server only accepts
+requests from the computer itself):
+
+```bash
+npm run build
+npm start -- -H 0.0.0.0   # then open http://<computer-ip>:3000 on the phone
+```
 
 ### Prototype notes
 
