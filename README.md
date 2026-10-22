@@ -5,7 +5,10 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 
 ## What it does
 
-- Create a match (singles / doubles / team) with standard rules pre-filled and editable
+- **Tournaments** (CricHeroes-style): league, seeded knockout, or groups → knockout. Add entries and seeds,
+  create groups and assign entries manually or automatically by seed, generate fixtures, follow points
+  tables and the bracket; winners move on automatically and the champion is shown
+- Create a single match (singles / doubles, or team for volleyball) with standard rules pre-filled and editable
 - Scorer sets the rules before the start and can change them at any time during the match
   (e.g. shorter games because of weather); changes apply from the current set and are announced
 - One active scorer at a time. Anyone with scoring access can request a take-over: the scorer gets 15
@@ -60,6 +63,9 @@ npm start -- -H 0.0.0.0   # then open http://<computer-ip>:3000 on the phone
 | `src/lib/rally/commentary.ts` | Commentary generation from the point log |
 | `src/lib/rally/rules.ts` | Rule validation and descriptions |
 | `src/lib/rally/sports.ts` | Sport configurations: rules and default shot types |
+| `src/lib/tournament/engine.ts` | Round-robin, seeded brackets, groups, points tables, advancement |
+| `src/lib/tournament/mutations.ts` | Tournament setup, fixture generation, knockout start, sync with results |
+| `src/app/tournaments/[id]` | Tournament page: entries, groups / table, fixtures, bracket |
 | `src/lib/identity.ts` | Mobile / email / username parsing and normalisation |
 | `src/lib/store.ts` | Prototype storage (to be replaced by Supabase) |
 | `src/app/matches/[id]/score` | Scorer screen |

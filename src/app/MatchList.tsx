@@ -5,7 +5,10 @@ import { Scoreboard, matchSubtitle } from "@/components/match-ui";
 import { demoMatches } from "@/lib/demo";
 import { matchState } from "@/lib/rally/engine";
 import type { Match, MatchStatus } from "@/lib/rally/types";
-import { saveMatch, setUser, useMatches, useUser } from "@/lib/store";
+import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
+import { champion } from "@/lib/tournament/engine";
+import type { Tournament } from "@/lib/tournament/types";
+import { saveMatch, setUser, useMatches, useTournaments, useUser } from "@/lib/store";
 
 const GROUPS: { status: MatchStatus; title: string }[] = [
   { status: "live", title: "Live now" },
@@ -33,22 +36,67 @@ function MatchCard({ match }: { match: Match }) {
   );
 }
 
+const PHASE_TEXT: Record<Tournament["phase"], string> = {
+  setup: "Setting up",
+  groups: "Group stage",
+  knockout: "Knockout",
+  complete: "Finished",
+};
+
+function TournamentCard({ t, matches }: { t: Tournament; matches: Record<string, Match> }) {
+  const winner = champion(t, matches);
+  const live = t.fixtures.filter((f) => f.matchId && matches[f.matchId]?.status === "live").length;
+  return (
+    <li>
+      <Link href={`/tournaments/${t.id}`} className="block rounded-2xl border border-border bg-surface p-4">
+        <p className="text-xs text-muted">
+          {SPORTS[t.sport].name} · {FORMAT_LABELS[t.format]} · {t.entries.length} entries
+        </p>
+        <p className="mt-0.5 font-semibold">{t.name}</p>
+        <p className="mt-1 text-sm">
+          {winner ? (
+            <span className="font-semibold text-accent">🏆 {t.entries.find((e) => e.id === winner)?.name}</span>
+          ) : (
+            <span className="text-muted">{PHASE_TEXT[t.phase]}</span>
+          )}
+          {live > 0 && <span className="ml-2 font-semibold text-live">● {live} live</span>}
+        </p>
+      </Link>
+    </li>
+  );
+}
+
 export function MatchList() {
   const matches = useMatches();
+  const tournaments = useTournaments();
   const user = useUser();
-  if (matches === null) return <p className="py-10 text-center text-muted">Loading…</p>;
+  if (matches === null || tournaments === null) return <p className="py-10 text-center text-muted">Loading…</p>;
   const all = Object.values(matches).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const tournamentList = Object.values(tournaments).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold">Matches</h1>
-        <Link href="/matches/new" className="rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background">
-          + New match
+      <div className="grid grid-cols-2 gap-2">
+        <Link href="/tournaments/new" className="rounded-xl bg-foreground px-4 py-3 text-center text-sm font-semibold text-background">
+          + New tournament
+        </Link>
+        <Link href="/matches/new" className="rounded-xl border border-border bg-surface px-4 py-3 text-center text-sm font-semibold">
+          + Single match
         </Link>
       </div>
 
-      {all.length === 0 && (
+      {tournamentList.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Tournaments</h2>
+          <ul className="space-y-3">
+            {tournamentList.map((t) => (
+              <TournamentCard key={t.id} t={t} matches={matches} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {all.length === 0 && tournamentList.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
           <p className="font-medium">No matches yet</p>
           <p className="mt-1 text-sm text-muted">

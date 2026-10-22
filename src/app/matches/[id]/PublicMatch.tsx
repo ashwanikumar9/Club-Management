@@ -19,6 +19,11 @@ export function PublicMatch({ params }: { params: Promise<{ id: string }> }) {
       {(m) => (
         <div className="space-y-4 pb-8">
           <div>
+            {m.tournament && (
+              <Link href={`/tournaments/${m.tournament.id}`} className="text-sm font-medium text-side-a">
+                ← Tournament · {m.tournament.label}
+              </Link>
+            )}
             <p className="text-sm text-muted">{matchSubtitle(m)}</p>
             <h1 className="text-xl font-bold">
               {m.sides.A.name} <span className="font-normal text-muted">vs</span> {m.sides.B.name}

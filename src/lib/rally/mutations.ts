@@ -57,7 +57,8 @@ export function createMatch(input: NewMatchInput): Match {
     rules: { ...input.rules },
     ruleChanges: [],
     actions: structuredClone(sport.actions),
-    settings: { askHow: true, askWho: input.format !== "singles" },
+    // "Who scored" is for team sports (volleyball); doubles can switch it on during the match.
+    settings: { askHow: true, askWho: input.format === "team" },
     sides: { A: toSide("A"), B: toSide("B") },
     organiser: input.organiser,
     scorers: [...new Set(input.scorers ?? [])]

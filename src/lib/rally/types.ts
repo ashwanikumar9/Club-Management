@@ -44,6 +44,16 @@ export interface Player {
 export interface Side {
   name: string;
   players: Player[];
+  /** Tournament entry playing on this side (tournament matches only). */
+  entryId?: string;
+}
+
+/** Link from a match to the tournament fixture it belongs to. */
+export interface TournamentLink {
+  id: string;
+  fixtureId: string;
+  /** e.g. "Group A · Round 2" or "Semi-finals". */
+  label: string;
 }
 
 /** Snapshot of the action at the time it was recorded, so later catalogue edits don't rewrite history. */
@@ -140,6 +150,7 @@ export interface Match {
   activeScorer?: string;
   /** Latest take-over request (kept after it is decided so the requester sees the outcome). */
   takeoverRequest?: TakeoverRequest;
+  tournament?: TournamentLink;
   status: MatchStatus;
   createdAt: string;
   startedAt?: string;

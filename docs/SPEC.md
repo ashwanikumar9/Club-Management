@@ -377,6 +377,36 @@ Organiser names any sport, picks a family, and builds its configuration and acti
 - **Heats → final:** for athletics
 - Fixtures can be auto-generated or created manually; each has date, time, venue/court and scorer
 
+### Tournaments (CricHeroes-style)
+Built in this order: tournaments first (with singles / doubles / volleyball team entries), then team ties.
+
+1. **Create** — organiser sets name, sport, entry type (singles, doubles, or team), venue, dates, match rules
+   and points (default **win 2, loss 0**; editable)
+2. **Entries** — add teams / pairs / players; optional **seed** numbers (1 = top seed)
+3. **Structure** — one of:
+   - **League** — everyone plays everyone once; points table decides the winner
+   - **Knockout** — seeded bracket (seeds 1 and 2 can only meet in the final; byes go to top seeds)
+   - **Groups → knockout** — like CricHeroes: create Group A, B, C…, assign entries manually or
+     automatically by seed (snake order so top seeds are spread out), set how many qualify per group;
+     each group plays a round-robin with its own points table; qualifiers go into a seeded knockout
+     (group winners kept apart, e.g. A1 v B2, B1 v A2)
+4. **Fixtures** — generated automatically (round-robin rounds inside groups; bracket matches appear as
+   soon as both sides are known). Each fixture is a normal live-scored match; tournament scorers get
+   access to all its matches
+5. **Points table** per group: played, won, lost, points, games won/lost, points scored/conceded.
+   Tie-breakers: points → head-to-head (two-way ties) → game difference → point difference
+6. **Advancement** — knockout winners move on automatically when a match is closed; if the organiser
+   corrects a closed result, the next match is updated if it hasn't started yet
+
+### Team ties (badminton / table tennis team events) — after tournaments
+- A tie between two teams consists of N matches (e.g. 5); the first team to win a majority wins and the
+  remaining matches are not played (organiser may choose to play them anyway)
+- Each team has a player list of any size
+- Line-ups either decided in advance (all matches entered with players) or decided at the start of each
+  match: the scorer picks singles / doubles and the starting players from each team's list
+- Matches inside a tie never ask "who scored" (the players are known from the line-up)
+- Volleyball stays a single team match with optional "who scored"
+
 ## 10. Medal / Points Table
 - Medals awarded **automatically** from closed results (knockout final, league winner, athletics final)
 - **Manual medal entry**: organiser types any sport/event name and awards any medal (gold/silver/bronze or a custom medal) to any team or player

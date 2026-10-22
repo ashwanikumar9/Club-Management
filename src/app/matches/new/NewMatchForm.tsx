@@ -7,6 +7,7 @@ import { RulesFields } from "@/components/RulesFields";
 import { IDENTITY_ICON, identityKind } from "@/lib/identity";
 import { createMatch } from "@/lib/rally/mutations";
 import { validateRules } from "@/lib/rally/rules";
+import { sportFormats } from "@/lib/tournament/mutations";
 import { FORMAT_LABELS, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
 import type { MatchFormat, RallyRules, SideKey, SportKey } from "@/lib/rally/types";
 import { saveMatch, useUser } from "@/lib/store";
@@ -53,7 +54,7 @@ export function NewMatchForm() {
   const config = SPORTS[sport];
 
   function chooseSport(next: SportKey) {
-    const nextFormat = SPORTS[next].formats.includes(format) ? format : SPORTS[next].formats[0];
+    const nextFormat = sportFormats(next).includes(format) ? format : sportFormats(next)[0];
     setSport(next);
     setRules(SPORTS[next].rules);
     chooseFormat(nextFormat);
@@ -143,9 +144,9 @@ export function NewMatchForm() {
             </button>
           ))}
         </div>
-        {config.formats.length > 1 && (
+        {sportFormats(sport).length > 1 && (
           <div className="flex gap-2">
-            {config.formats.map((f) => (
+            {sportFormats(sport).map((f) => (
               <button
                 key={f}
                 type="button"
