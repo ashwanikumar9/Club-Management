@@ -10,7 +10,7 @@ import type { Tie } from "@/lib/tie/types";
 import { champion, type Data } from "@/lib/tournament/engine";
 import { scheduleKey } from "@/lib/tournament/schedule";
 import type { Tournament } from "@/lib/tournament/types";
-import { saveMatch, setUser, useMatches, useTies, useTournaments, useUser } from "@/lib/store";
+import { isRemote, saveMatch, setUser, useMatches, useTies, useTournaments, useUser } from "@/lib/store";
 
 const GROUPS: { status: MatchStatus; title: string }[] = [
   { status: "live", title: "Live now" },
@@ -147,19 +147,23 @@ export function MatchList() {
           <p className="font-medium">No matches yet</p>
           <p className="mt-1 text-sm text-muted">
             Create a badminton, table tennis or volleyball match, or load samples to explore
-            {user ? "" : " (you'll be signed in as @organiser)"}.
+            {user || isRemote ? "" : " (you'll be signed in as @organiser)"}.
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              const organiser = user ?? "@organiser";
-              if (!user) setUser(organiser);
-              demoMatches(organiser).forEach(saveMatch);
-            }}
-            className="mt-4 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium"
-          >
-            Load sample matches
-          </button>
+          {isRemote && !user ? (
+            <p className="mt-3 text-sm font-medium">Sign in (top right) to create matches or load the samples.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                const organiser = user ?? "@organiser";
+                if (!user) setUser(organiser);
+                demoMatches(organiser).forEach(saveMatch);
+              }}
+              className="mt-4 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium"
+            >
+              Load sample matches
+            </button>
+          )}
         </div>
       )}
 
@@ -178,9 +182,11 @@ export function MatchList() {
         );
       })}
 
-      <p className="text-xs text-muted">
-        Prototype: matches are saved in this browser only. Open a match in two tabs to see live updates between the scorer and public view.
-      </p>
+      {!isRemote && (
+        <p className="text-xs text-muted">
+          Prototype: matches are saved in this browser only. Open a match in two tabs to see live updates between the scorer and public view.
+        </p>
+      )}
     </div>
   );
 }
