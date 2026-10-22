@@ -127,7 +127,12 @@ Left sidebar → **Project Settings** (gear icon at the bottom) → **API** or *
 - **Your computer**: create a file `.env.local` in the project folder with the same two lines
   (`NAME=value`), then restart `npm run dev`.
 
-Never use the `service_role` / secret key in the app.
+- **Or in the repository** (what this project does now): the file `.env.production` holds the Project URL
+  and the publishable key, and every Vercel build uses it, with no Vercel settings needed. Both values are
+  public by design. Variables set in Vercel take precedence over the file. Note that `npm run build` on a
+  computer then also connects to the live database; `npm run dev` stays in prototype mode.
+
+Never use the `service_role` / secret key in the app or in any file.
 
 ## 5. Check it works
 

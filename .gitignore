@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# The production database address and its public (publishable) key are safe to share and are committed so
+# Vercel builds connect without extra settings. Secret keys never go in any file.
+!.env.production
 
 # vercel
 .vercel
