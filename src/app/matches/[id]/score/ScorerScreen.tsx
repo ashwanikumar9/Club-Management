@@ -8,6 +8,7 @@ import { describePoint, playerName } from "@/lib/rally/commentary";
 import { other, type MatchState } from "@/lib/rally/engine";
 import { RulesFields } from "@/components/RulesFields";
 import { ScorersPanel } from "@/components/ScorersPanel";
+import { TakeoverCard, TakeoverPrompt, useTakeoverSettler } from "@/components/Takeover";
 import {
   addPoint,
   changeRules,
@@ -16,7 +17,6 @@ import {
   isOrganiser,
   setLatestPointDetail,
   startMatch,
-  takeOverScoring,
   undoLast,
   updateSettings,
 } from "@/lib/rally/mutations";
@@ -53,8 +53,8 @@ function Scorer({
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
-  const [confirmTakeOver, setConfirmTakeOver] = useState(false);
   const sport = SPORTS[match.sport];
+  useTakeoverSettler(match);
 
   const enabledActions = match.actions.filter((a) => a.enabled);
   const canAskHow = match.settings.askHow && enabledActions.length > 0;
@@ -164,52 +164,12 @@ function Scorer({
       <div className="space-y-4 pb-6">
         <Header match={match} />
         <Scoreboard match={match} state={state} compact />
-        <div className="rounded-2xl border-2 border-border bg-surface p-4">
-          <p className="font-semibold">
-            {match.activeScorer ? `${match.activeScorer} is scoring this match` : "Nobody is scoring right now"}
-          </p>
-          <p className="mt-1 text-sm text-muted">
-            {match.activeScorer
-              ? "Only one person scores at a time. If their phone has died or they can't continue, take over and carry on from the current score."
-              : "Take over to continue scoring from the current score."}
-          </p>
-          {error && <p className="mt-2 text-sm text-danger">{error}</p>}
-          <button
-            type="button"
-            onClick={() => (match.activeScorer ? setConfirmTakeOver(true) : run((m) => takeOverScoring(m, by)))}
-            className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background"
-          >
-            Take over scoring
-          </button>
-        </div>
+        <TakeoverCard match={match} user={user} />
         <ScorersPanel match={match} user={user} />
         <section>
           <h2 className="mb-2 mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Commentary</h2>
           <CommentaryFeed match={match} lines={commentary} limit={12} />
         </section>
-        {confirmTakeOver && (
-          <Sheet title="Take over scoring?" onClose={() => setConfirmTakeOver(false)}>
-            <p className="text-sm">
-              {match.activeScorer} will no longer be able to score. Do this if their device has died or they have handed the
-              match to you.
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setConfirmTakeOver(false)} className="rounded-xl border border-border py-3 font-medium">
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  run((m) => takeOverScoring(m, by));
-                  setConfirmTakeOver(false);
-                }}
-                className="rounded-xl bg-foreground py-3 font-bold text-background"
-              >
-                Take over
-              </button>
-            </div>
-          </Sheet>
-        )}
       </div>
     );
   }
@@ -274,6 +234,7 @@ function Scorer({
       <SettingsBar match={match} by={by} />
 
       <ScorersPanel match={match} user={user} />
+      <TakeoverPrompt match={match} user={user} />
 
       <section>
         <h2 className="mb-2 mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Commentary</h2>

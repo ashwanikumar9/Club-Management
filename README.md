@@ -8,8 +8,9 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 - Create a match (singles / doubles / team) with standard rules pre-filled and editable
 - Scorer sets the rules before the start and can change them at any time during the match
   (e.g. shorter games because of weather); changes apply from the current set and are announced
-- One active scorer at a time; anyone with scoring access can take over (e.g. when a phone dies) or be
-  handed control, and any scorer can give access to someone else by mobile number, email or username
+- One active scorer at a time. Anyone with scoring access can request a take-over: the scorer gets 15
+  seconds to allow or decline, and silence (e.g. a dead phone) passes scoring over automatically. Any scorer
+  can give access to someone else by mobile number (with country code), email or username
 - Point-by-point scoring with big `+1` buttons
 - Optional "how" (shot type) and "who" (player / jersey) prompts after each point, switchable mid-match
 - Auto-generated live commentary, game/set point, match point and result lines
@@ -33,8 +34,8 @@ To try it on a phone on the same Wi-Fi: `npm run dev -- -H 0.0.0.0` and open `ht
 - Data is stored in the browser (localStorage). Open the scorer and public view in two tabs of the
   same browser to see live updates. Supabase (shared data, realtime across devices, logins, scorer
   codes) replaces this in the next step; only `src/lib/store.ts` changes.
-- Sign in (top right) with any mobile number, email or username; there is no verification yet. Switch
-  person from the same menu to try a hand-over on one device. The creator of a match is its organiser.
+- Sign in (top right) with any mobile number, email or username; there is no verification yet. Sign-in is
+  per browser tab, so open the scorer screen in two tabs as two people to try the take-over pop-up. The creator of a match is its organiser.
 
 ## Code map
 

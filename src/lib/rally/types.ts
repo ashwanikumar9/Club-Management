@@ -98,6 +98,21 @@ export interface ScorerAccess {
   addedAt: string;
 }
 
+/**
+ * A request by someone with access to take over from the active scorer. The active scorer can allow or
+ * decline; if they don't answer before `expiresAt` (e.g. their phone has died) scoring passes automatically.
+ */
+export interface TakeoverRequest {
+  id: string;
+  from: string;
+  /** The active scorer when the request was made. */
+  to: string;
+  requestedAt: string;
+  expiresAt: string;
+  status: "pending" | "allowed" | "declined" | "auto" | "cancelled";
+  decidedAt?: string;
+}
+
 export interface DetailSettings {
   askHow: boolean;
   askWho: boolean;
@@ -123,6 +138,8 @@ export interface Match {
   scorers: ScorerAccess[];
   /** The one person currently in control of scoring. */
   activeScorer?: string;
+  /** Latest take-over request (kept after it is decided so the requester sees the outcome). */
+  takeoverRequest?: TakeoverRequest;
   status: MatchStatus;
   createdAt: string;
   startedAt?: string;

@@ -16,7 +16,10 @@ import {
   reopenMatch,
   setLatestPointDetail,
   startMatch,
-  takeOverScoring,
+  cancelTakeover,
+  requestTakeover,
+  respondToTakeover,
+  settleTakeover,
   undoLast,
 } from "./mutations";
 import { SPORTS } from "./sports";
@@ -237,6 +240,11 @@ describe("changing rules", () => {
 describe("scoring access and control", () => {
   const SCORER = "+919876543210";
   const BACKUP = "backup@example.com";
+  const t0 = new Date("2026-10-22T10:00:00Z");
+  const after = (seconds: number) => new Date(t0.getTime() + seconds * 1000);
+
+  /** Gives SCORER control (organiser hands over directly). */
+  const withScorer = () => handOverScoring(addScorer(newMatch(), ORG, SCORER), ORG, SCORER);
 
   it("lets only the active scorer change the score", () => {
     let m = addScorer(newMatch(), ORG, SCORER);
@@ -248,34 +256,82 @@ describe("scoring access and control", () => {
     expect(state(m).sets[0].A).toBe(1);
   });
 
-  it("lets a scorer add a backup who takes over when the device dies", () => {
-    let m = addScorer(newMatch(), ORG, SCORER);
-    m = takeOverScoring(m, SCORER);
-    m = score2(m, SCORER, "AAB");
+  it("passes scoring automatically when the scorer doesn't answer within 15 seconds", () => {
+    let m = score2(withScorer(), SCORER, "AAB");
     m = addScorer(m, SCORER, BACKUP); // the scorer adds a backup before their battery dies
-    m = takeOverScoring(m, BACKUP); // no approval needed from the scorer
+    m = requestTakeover(m, BACKUP, t0);
+    expect(m.activeScorer).toBe(SCORER);
+    expect(settleTakeover(m, after(14))).toBe(m); // still waiting
+    m = settleTakeover(m, after(15));
+    expect(m.activeScorer).toBe(BACKUP);
+    expect(m.takeoverRequest?.status).toBe("auto");
     m = score2(m, BACKUP, "B");
     expect(state(m).sets[0]).toMatchObject({ A: 2, B: 2 });
-    expect(() => addPoint(m, "A", SCORER)).toThrow(/backup@example.com is scoring/);
-    const last = state(m).points.at(-1)!.event.id;
-    m = undoLast(m, last, BACKUP); // the new scorer continues with full control, including undo
+    m = undoLast(m, state(m).points.at(-1)!.event.id, BACKUP); // full control, including undo
     expect(state(m).sets[0]).toMatchObject({ A: 2, B: 1 });
-    expect(m.history.map((h) => h.summary)).toContain("backup@example.com took over scoring from +919876543210");
+    expect(() => addPoint(m, "A", SCORER)).toThrow(/backup@example.com is scoring/);
+    expect(m.history.at(-1)?.summary).toBe(
+      "backup@example.com took over scoring from +919876543210 (no response within 15 seconds)",
+    );
+  });
+
+  it("hands over at once when the scorer allows", () => {
+    let m = requestTakeover(addScorer(withScorer(), ORG, BACKUP), BACKUP, t0);
+    expect(() => respondToTakeover(m, BACKUP, true, after(2))).toThrow(/Only the current scorer/);
+    m = respondToTakeover(m, SCORER, true, after(3));
+    expect(m.activeScorer).toBe(BACKUP);
+    expect(m.takeoverRequest?.status).toBe("allowed");
+  });
+
+  it("keeps the scorer in control when they decline in time", () => {
+    let m = requestTakeover(addScorer(withScorer(), ORG, BACKUP), BACKUP, t0);
+    m = score2(m, SCORER, "A"); // scoring continues while the request is open
+    m = respondToTakeover(m, SCORER, false, after(10));
+    expect(m.activeScorer).toBe(SCORER);
+    expect(m.takeoverRequest?.status).toBe("declined");
+    expect(settleTakeover(m, after(60))).toBe(m); // a declined request never auto-completes
+    expect(() => addPoint(m, "A", BACKUP)).toThrow(/is scoring/);
+  });
+
+  it("treats an answer after the 15 seconds as too late", () => {
+    let m = requestTakeover(addScorer(withScorer(), ORG, BACKUP), BACKUP, t0);
+    m = respondToTakeover(m, SCORER, false, after(16));
+    expect(m.activeScorer).toBe(BACKUP);
+    expect(m.takeoverRequest?.status).toBe("auto");
+  });
+
+  it("allows one pending request at a time, cancelling, and immediate control when nobody scores", () => {
+    let m = addScorer(addScorer(withScorer(), ORG, BACKUP), ORG, "@third");
+    m = requestTakeover(m, BACKUP, t0);
+    expect(() => requestTakeover(m, "@third", after(1))).toThrow(/backup@example.com has already asked/);
+    expect(() => requestTakeover(m, BACKUP, after(1))).toThrow(/already asked/);
+    m = cancelTakeover(m, BACKUP, after(2));
+    expect(settleTakeover(m, after(30)).activeScorer).toBe(SCORER);
+    m = removeScorer(m, ORG, SCORER); // nobody is scoring now
+    m = requestTakeover(m, "@third", after(40));
+    expect(m.activeScorer).toBe("@third");
+  });
+
+  it("cancels a pending request when control changes another way", () => {
+    let m = requestTakeover(addScorer(addScorer(withScorer(), ORG, BACKUP), ORG, "@third"), BACKUP, t0);
+    m = handOverScoring(m, SCORER, "@third");
+    expect(m.takeoverRequest?.status).toBe("cancelled");
+    expect(settleTakeover(m, after(20)).activeScorer).toBe("@third");
   });
 
   it("refuses scorers without access and duplicate access", () => {
     const m = newMatch();
     expect(() => addScorer(m, "@stranger", SCORER)).toThrow(/don't have scoring access/);
     expect(() => addScorer(addScorer(m, ORG, SCORER), ORG, SCORER)).toThrow(/already has scoring access/);
-    expect(() => takeOverScoring(m, "@stranger")).toThrow(/don't have scoring access/);
+    expect(() => requestTakeover(m, "@stranger")).toThrow(/don't have scoring access/);
   });
 
   it("lets only the organiser remove a scorer, which also ends their control", () => {
-    let m = takeOverScoring(addScorer(newMatch(), ORG, SCORER), SCORER);
+    let m = withScorer();
     expect(() => removeScorer(m, SCORER, SCORER)).toThrow(/Only the organiser/);
     m = removeScorer(m, ORG, SCORER);
     expect(m.activeScorer).toBeUndefined();
-    expect(() => takeOverScoring(m, SCORER)).toThrow(/don't have scoring access/);
+    expect(() => requestTakeover(m, SCORER)).toThrow(/don't have scoring access/);
   });
 });
 

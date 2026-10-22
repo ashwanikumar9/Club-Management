@@ -26,9 +26,13 @@ function readMatches(): Matches {
   }
 }
 
+/**
+ * Sign-in is kept per browser tab (sessionStorage) so two tabs can act as two different people, which is
+ * how the scorer hand-over can be tried on one device. New tabs start as the last person signed in.
+ */
 function readUser(): string | null {
   try {
-    return localStorage.getItem(USER_KEY);
+    return sessionStorage.getItem(USER_KEY) ?? localStorage.getItem(USER_KEY);
   } catch {
     return null;
   }
@@ -42,7 +46,6 @@ function subscribe(listener: () => void) {
   listeners.add(listener);
   const onStorage = (e: StorageEvent) => {
     if (e.key === MATCHES_KEY) matchesCache = readMatches();
-    if (e.key === USER_KEY) userCache = readUser();
     listener();
   };
   window.addEventListener("storage", onStorage);
@@ -97,6 +100,7 @@ export function updateMatch(id: string, mutate: (match: Match) => Match): string
   if (!current) return "Match not found.";
   try {
     const next = mutate(current);
+    if (next === current) return null; // nothing changed
     writeMatches({ ...all, [id]: { ...next, version: current.version + 1 } });
     return null;
   } catch (error) {
@@ -120,8 +124,10 @@ export function useUser(): string | null {
 export function setUser(user: string | null) {
   userCache = user;
   try {
-    if (user) localStorage.setItem(USER_KEY, user);
-    else localStorage.removeItem(USER_KEY);
+    for (const storage of [sessionStorage, localStorage]) {
+      if (user) storage.setItem(USER_KEY, user);
+      else storage.removeItem(USER_KEY);
+    }
   } catch {
     // ignore
   }

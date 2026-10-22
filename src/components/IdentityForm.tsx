@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { parseIdentity } from "@/lib/identity";
+import { COUNTRIES, DEFAULT_COUNTRY, parseIdentity } from "@/lib/identity";
 
 /** One field that accepts a mobile number, email address or username. */
 export function IdentityForm({
@@ -15,10 +15,11 @@ export function IdentityForm({
   autoFocus?: boolean;
 }) {
   const [value, setValue] = useState("");
+  const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [error, setError] = useState<string | null>(null);
 
   function submit() {
-    const parsed = parseIdentity(value);
+    const parsed = parseIdentity(value, country);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -32,6 +33,27 @@ export function IdentityForm({
   return (
     <div>
       <div className="flex gap-2">
+        {/* Shows just "+91" while the native list (opened on tap) shows full country names. */}
+        <div className="relative w-[4.75rem] shrink-0">
+          <span
+            aria-hidden
+            className="tabular flex h-full items-center justify-between rounded-lg border border-border bg-surface px-2.5 text-sm"
+          >
+            +{country} <span className="text-xs text-muted">▾</span>
+          </span>
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            aria-label="Country code for mobile numbers"
+            className="absolute inset-0 cursor-pointer opacity-0"
+          >
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                +{c.code} {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -51,6 +73,7 @@ export function IdentityForm({
           {submitLabel}
         </button>
       </div>
+      <p className="mt-1 text-xs text-muted">The country code is used for mobile numbers typed without “+”.</p>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </div>
   );

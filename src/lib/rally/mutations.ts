@@ -13,6 +13,7 @@ import type {
   ScoreEvent,
   SideKey,
   SportKey,
+  TakeoverRequest,
 } from "./types";
 
 /** Mutations are pure: they take a match and return a new one, or throw a MutationError. */
@@ -129,23 +130,94 @@ export function removeScorer(match: Match, by: string, user: string): Match {
   if (!isOrganiser(match, by)) throw new MutationError("Only the organiser can remove scorers.");
   if (!match.scorers.some((s) => s.user === user)) throw new MutationError(`${user} is not a scorer on this match.`);
   const updated = {
-    ...match,
+    ...voidTakeover(match),
     scorers: match.scorers.filter((s) => s.user !== user),
     activeScorer: match.activeScorer === user ? undefined : match.activeScorer,
   };
   return audit(updated, "scorer", by, `${by} removed scoring access for ${user}`);
 }
 
+/** Seconds the active scorer has to decline a take-over request before scoring passes automatically. */
+export const TAKEOVER_SECONDS = 15;
+
+export function pendingTakeover(match: Match): TakeoverRequest | undefined {
+  return match.takeoverRequest?.status === "pending" ? match.takeoverRequest : undefined;
+}
+
+function decideTakeover(match: Match, status: TakeoverRequest["status"], at: Date): Match {
+  return { ...match, takeoverRequest: { ...match.takeoverRequest!, status, decidedAt: at.toISOString() } };
+}
+
+/** Cancels a pending request when control changes some other way (hand-over, removal, close). */
+function voidTakeover(match: Match, at: Date = new Date()): Match {
+  return pendingTakeover(match) ? decideTakeover(match, "cancelled", at) : match;
+}
+
 /**
- * Takes control of scoring. Needs no approval from the current scorer, because the usual reason is
- * that their device has died; the change is logged and the previous scorer can no longer score.
+ * Asks to take over scoring. With nobody scoring, control is taken immediately. Otherwise the active
+ * scorer gets TAKEOVER_SECONDS to allow or decline; silence counts as allowing (see settleTakeover).
  */
-export function takeOverScoring(match: Match, by: string): Match {
+export function requestTakeover(match: Match, by: string, at: Date = new Date()): Match {
   requireAccess(match, by);
   if (match.status !== "live") throw new MutationError("Scoring can only be taken over while the match is live.");
   if (match.activeScorer === by) return match;
-  const from = match.activeScorer ? ` from ${match.activeScorer}` : "";
-  return audit({ ...match, activeScorer: by }, "scorer", by, `${by} took over scoring${from}`);
+  if (!match.activeScorer) {
+    return audit({ ...voidTakeover(match, at), activeScorer: by }, "scorer", by, `${by} took over scoring`);
+  }
+  const pending = pendingTakeover(match);
+  if (pending) {
+    throw new MutationError(
+      pending.from === by ? "You have already asked to take over." : `${pending.from} has already asked to take over. Try again shortly.`,
+    );
+  }
+  const request: TakeoverRequest = {
+    id: newId(),
+    from: by,
+    to: match.activeScorer,
+    requestedAt: at.toISOString(),
+    expiresAt: new Date(at.getTime() + TAKEOVER_SECONDS * 1000).toISOString(),
+    status: "pending",
+  };
+  return { ...match, takeoverRequest: request };
+}
+
+/** The active scorer allows or declines a pending take-over request. */
+export function respondToTakeover(match: Match, by: string, allow: boolean, at: Date = new Date()): Match {
+  const settled = settleTakeover(match, at);
+  if (settled !== match) return settled; // already timed out: scoring has passed on
+  const pending = pendingTakeover(match);
+  if (!pending) throw new MutationError("There is no take-over request to answer.");
+  if (pending.to !== by || match.activeScorer !== by) throw new MutationError("Only the current scorer can answer this request.");
+  if (!allow) {
+    return audit(decideTakeover(match, "declined", at), "scorer", by, `${by} declined ${pending.from}'s request to take over scoring`);
+  }
+  const allowed = { ...decideTakeover(match, "allowed", at), activeScorer: pending.from };
+  return audit(allowed, "scorer", by, `${by} handed scoring over to ${pending.from} on request`);
+}
+
+export function cancelTakeover(match: Match, by: string, at: Date = new Date()): Match {
+  const pending = pendingTakeover(match);
+  if (!pending || pending.from !== by) throw new MutationError("You have no pending take-over request.");
+  return decideTakeover(match, "cancelled", at);
+}
+
+/**
+ * Completes a pending request whose time is up. Any device with the match open may call this; it returns
+ * the same match object when there is nothing to do.
+ */
+export function settleTakeover(match: Match, at: Date = new Date()): Match {
+  const pending = pendingTakeover(match);
+  if (!pending || at.getTime() < new Date(pending.expiresAt).getTime()) return match;
+  if (match.status !== "live" || match.activeScorer !== pending.to || !hasScoringAccess(match, pending.from)) {
+    return decideTakeover(match, "cancelled", at);
+  }
+  const taken = { ...decideTakeover(match, "auto", at), activeScorer: pending.from };
+  return audit(
+    taken,
+    "scorer",
+    pending.from,
+    `${pending.from} took over scoring from ${pending.to} (no response within ${TAKEOVER_SECONDS} seconds)`,
+  );
 }
 
 /** The current scorer passes control to another person with scoring access. */
@@ -153,7 +225,7 @@ export function handOverScoring(match: Match, by: string, to: string): Match {
   requireActiveScorer(match, by);
   if (!hasScoringAccess(match, to)) throw new MutationError(`${to} doesn't have scoring access.`);
   if (to === by) return match;
-  return audit({ ...match, activeScorer: to }, "scorer", by, `${by} handed scoring over to ${to}`);
+  return audit({ ...voidTakeover(match), activeScorer: to }, "scorer", by, `${by} handed scoring over to ${to}`);
 }
 
 export function addPoint(match: Match, side: SideKey, by: string): { match: Match; event: ScoreEvent } {
@@ -232,7 +304,7 @@ export function closeMatch(match: Match, by: string): Match {
   const result = state.winner
     ? `${match.sides[state.winner].name} won ${state.setsWon[state.winner]}–${state.setsWon[state.winner === "A" ? "B" : "A"]}`
     : "no result";
-  const closed = { ...match, status: "closed" as const, closedAt: now(), closedBy: by, activeScorer: undefined };
+  const closed = { ...voidTakeover(match), status: "closed" as const, closedAt: now(), closedBy: by, activeScorer: undefined };
   return audit(closed, "close", by, `Match closed (${result})`);
 }
 

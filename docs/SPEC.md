@@ -89,15 +89,24 @@ commentary feed, results, standings and the overall medal table. All results are
 
 People sign in with a mobile number, email or in-app username (one-time code by SMS / email once the
 database is connected). Identities are normalised so the same person always matches
-(e.g. email lower-cased, `@username`).
+(e.g. email lower-cased, `@username`). Mobile numbers are entered with a **country code picker**
+(default +91) and stored in international form, so "098765 43210" with India selected and
+"+91 98765 43210" are the same person; numbers typed with "+" or "00" keep their own code.
 
 ### Single scorer, multiple people with access
 - **Only one person scores a match at a time** (the "active scorer"); everyone else with access sees the
   live score but no scoring buttons
 - Several people can have scoring access to the same match, so scoring never depends on one device
-- **Take over:** anyone with access can take control at any time and continue from the current score,
-  with full control including undo. No approval from the current scorer is needed, because the usual
-  reason is that their device has died. The previous scorer immediately loses control
+- **Take-over request:** anyone with access can ask to take over. The current scorer gets a pop-up with a
+  **15-second countdown** and Allow / Decline buttons:
+  - **Allow** → scoring passes to the requester immediately
+  - **Decline** within 15 seconds → the current scorer keeps control and the requester is told it was declined
+    (they may ask again later)
+  - **No answer** within 15 seconds (e.g. the scorer's phone has died) → scoring passes to the requester automatically
+  - The current scorer can keep scoring while the request is open; the new scorer continues from the exact
+    score with full control, including undo
+  - One pending request at a time; the requester can cancel it; it is voided if control changes another way
+  - If nobody is scoring, a person with access takes control immediately
 - **Hand over:** the active scorer can pass control to another person with access
 - **Add a scorer:** the organiser **and any scorer** of the match can give access to another person by
   mobile number, email or username, e.g. when no second scorer was added and the scorer's battery is low
