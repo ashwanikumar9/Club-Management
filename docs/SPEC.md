@@ -23,6 +23,7 @@ Prototype scope:
 - Customisable "how" action catalogue per sport, ask-how / ask-who toggles
 - Undo until close; post-close editing by organiser/admin
 - Singles, doubles and team sides with player names / jersey numbers
+- Single active scorer with take-over / hand-over; scorers can add other scorers by mobile, email or username
 
 Everything else in this spec (other families, tennis, cricket, full event management, medal tally)
 follows after the prototype is tested, using its designs and components.
@@ -46,7 +47,7 @@ commentary feed, results, standings and the overall medal table. All results are
 - **Auto-generated live commentary** from scoring entries
 - **Undo** available for the whole match until it is closed; admin-only editing after close
 - Multiple scorers per match; organiser can also score
-- Scorer access via code
+- Scorer access by mobile number, email or username; one active scorer with take-over
 - Public live site with realtime score and commentary updates
 - Optional livestream link per event and per match (link only, no hosting)
 - League tables, brackets, overall medal / points table
@@ -83,10 +84,26 @@ commentary feed, results, standings and the overall medal table. All results are
 |---|---|
 | **Organiser (owner)** | Signs up with an account. Creates and owns events, configures everything, can score any match, can edit any score after close, invites co-organisers. |
 | **Admin (co-organiser)** | Invited by the owner. Same permissions as the owner for that event, except deleting the event or managing other admins. |
-| **Scorer** | Joins with an access code (no full account needed). Code scoped to an event or specific matches. Can score, undo and close assigned matches. **Cannot edit after close.** |
+| **Scorer** | Given access to a match by **mobile number, email or in-app username** (by the organiser or by another scorer of that match). Can score, undo and close the match while in control. **Cannot edit after close.** |
 | **Spectator** | No login. Read-only public pages. |
 
-Multiple scorers can score the same match at the same time; all scorer screens stay in sync in realtime.
+People sign in with a mobile number, email or in-app username (one-time code by SMS / email once the
+database is connected). Identities are normalised so the same person always matches
+(e.g. email lower-cased, `@username`).
+
+### Single scorer, multiple people with access
+- **Only one person scores a match at a time** (the "active scorer"); everyone else with access sees the
+  live score but no scoring buttons
+- Several people can have scoring access to the same match, so scoring never depends on one device
+- **Take over:** anyone with access can take control at any time and continue from the current score,
+  with full control including undo. No approval from the current scorer is needed, because the usual
+  reason is that their device has died. The previous scorer immediately loses control
+- **Hand over:** the active scorer can pass control to another person with access
+- **Add a scorer:** the organiser **and any scorer** of the match can give access to another person by
+  mobile number, email or username, e.g. when no second scorer was added and the scorer's battery is low
+- **Remove a scorer:** organiser only (also ends their control if they were scoring)
+- Whoever starts the match becomes the active scorer; the organiser can always take over
+- Every add, removal, take-over and hand-over is recorded in the match change log
 
 ## 4. Core Architecture: Point-by-Point Event Log
 
@@ -373,13 +390,13 @@ Organiser names any sport, picks a family, and builds its configuration and acti
 - Teams / participants per sport & category, rosters with jersey numbers (manual + CSV upload)
 - Organisations: create, link teams/players for the overall medal tally
 - Fixture generator and editor, scorer assignment
-- Scorer access codes (generate, revoke)
+- Scoring access per match (add / remove people by mobile, email or username)
 - Manual medal entry
 - Closed-match editor (edit / add / delete entries, re-open match) with audit history
 - Livestream links, admin invitations
 
 ### Scorer
-- Enter code → my matches → scoring screen
+- Sign in → my matches → scoring screen (or take over if someone else is scoring)
 - Large `+` buttons per side (and `+2` / `+3` where the sport uses them)
 - Detail bottom sheet (how / who) with Skip
 - **Undo** button always visible (shows what it will undo)
@@ -393,7 +410,7 @@ Organiser names any sport, picks a family, and builds its configuration and acti
 | Framework | Next.js (App Router) + TypeScript |
 | UI | Tailwind CSS + shadcn/ui, mobile-first, installable PWA |
 | Database | Supabase (PostgreSQL) — free tier for initial data |
-| Auth | Supabase Auth for organisers/admins; access codes for scorers |
+| Auth | Supabase Auth for organisers/admins and scorers (one-time code by SMS or email) |
 | Realtime | Supabase Realtime for live scores and commentary |
 | Security | Postgres Row Level Security per event / role (scorer cannot edit closed matches) |
 | Hosting | Vercel (free tier) + Supabase |
@@ -422,7 +439,8 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 - `commentary` (derived view / table regenerated from score_events + system events)
 - `performances` (athletics marks, attempts, status)
 - `medals` (event, sport label, medal type, team / participant / organisation, source: auto | manual)
-- `scorer_codes` (code hash, event, allowed matches, expiry, revoked)
+- `match_scorers` (match, user identity, added_by, added_at) — people with scoring access
+- `matches.active_scorer` — the one person currently in control of scoring
 
 ## 14. Roadmap
 
@@ -431,7 +449,7 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 | 0 | Spec agreed (this document) |
 | P — Rally prototype | Volleyball, badminton, table tennis: rally engine, scorer screen, public match view, commentary, undo/close — tested before the phases below |
 | 1 — Foundation | Next.js + Supabase setup, schema, organiser/admin auth, event / venue / sport setup, organisations, teams & participants per sport, rosters with jersey numbers (incl. CSV) |
-| 2 — Fixtures & access | Knockout, round-robin, groups → knockout generators, manual fixtures, schedule, scorer codes and assignment |
+| 2 — Fixtures & access | Knockout, round-robin, groups → knockout generators, manual fixtures, schedule, scorer access and assignment |
 | 3 — Scoring engine core | Point-by-point event log, Quick mode `+1/+2/+3`, Undo (until close), Close match, post-close admin editing with audit, multi-scorer realtime sync, match lifecycle |
 | 4 — Sport rules | Rally family (badminton, tennis, table tennis, volleyball), multi-value points (basketball), timed points (football, kabaddi), result only (chess) — auto game/set/period/match completion |
 | 5 — Detail & commentary | Action catalogues with defaults, how/who bottom sheet, detail toggles mid-match, commentary templates & generator, system commentary, catalogue editor for organisers |

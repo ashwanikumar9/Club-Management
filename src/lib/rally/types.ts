@@ -6,8 +6,6 @@ export type MatchFormat = "singles" | "doubles" | "team";
 
 export type MatchStatus = "scheduled" | "live" | "closed";
 
-export type Role = "scorer" | "organiser";
-
 export interface RallyRules {
   /** Points needed to win a normal set/game. */
   pointsPerSet: number;
@@ -73,7 +71,7 @@ export interface ScoreEvent {
   deletedAt?: string;
 }
 
-export type AuditKind = "close" | "reopen" | "edit" | "insert" | "delete" | "rules";
+export type AuditKind = "close" | "reopen" | "edit" | "insert" | "delete" | "rules" | "scorer";
 
 export interface AuditEntry {
   id: string;
@@ -91,6 +89,13 @@ export interface RuleChange {
   rules: RallyRules;
   at: string;
   by: string;
+}
+
+/** A person given scoring access to a match (identified by mobile number, email or username). */
+export interface ScorerAccess {
+  user: string;
+  addedBy: string;
+  addedAt: string;
 }
 
 export interface DetailSettings {
@@ -112,6 +117,12 @@ export interface Match {
   actions: ActionDef[];
   settings: DetailSettings;
   sides: Record<SideKey, Side>;
+  /** Person who created the match; can manage scorers and correct closed matches. */
+  organiser: string;
+  /** People with scoring access. Only one of them (or the organiser) scores at a time. */
+  scorers: ScorerAccess[];
+  /** The one person currently in control of scoring. */
+  activeScorer?: string;
   status: MatchStatus;
   createdAt: string;
   startedAt?: string;

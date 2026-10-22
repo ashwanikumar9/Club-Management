@@ -5,7 +5,7 @@ import { Scoreboard, matchSubtitle } from "@/components/match-ui";
 import { demoMatches } from "@/lib/demo";
 import { matchState } from "@/lib/rally/engine";
 import type { Match, MatchStatus } from "@/lib/rally/types";
-import { saveMatch, useMatches } from "@/lib/store";
+import { saveMatch, setUser, useMatches, useUser } from "@/lib/store";
 
 const GROUPS: { status: MatchStatus; title: string }[] = [
   { status: "live", title: "Live now" },
@@ -35,6 +35,7 @@ function MatchCard({ match }: { match: Match }) {
 
 export function MatchList() {
   const matches = useMatches();
+  const user = useUser();
   if (matches === null) return <p className="py-10 text-center text-muted">Loading…</p>;
   const all = Object.values(matches).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
@@ -50,10 +51,17 @@ export function MatchList() {
       {all.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
           <p className="font-medium">No matches yet</p>
-          <p className="mt-1 text-sm text-muted">Create a badminton, table tennis or volleyball match, or load samples to explore.</p>
+          <p className="mt-1 text-sm text-muted">
+            Create a badminton, table tennis or volleyball match, or load samples to explore
+            {user ? "" : " (you'll be signed in as @organiser)"}.
+          </p>
           <button
             type="button"
-            onClick={() => demoMatches().forEach(saveMatch)}
+            onClick={() => {
+              const organiser = user ?? "@organiser";
+              if (!user) setUser(organiser);
+              demoMatches(organiser).forEach(saveMatch);
+            }}
             className="mt-4 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium"
           >
             Load sample matches

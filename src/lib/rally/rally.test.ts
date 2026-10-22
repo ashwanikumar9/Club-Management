@@ -7,16 +7,22 @@ import {
   closeMatch,
   createMatch,
   deletePoint,
+  addScorer,
   editPoint,
+  handOverScoring,
   insertPoint,
   MutationError,
+  removeScorer,
   reopenMatch,
   setLatestPointDetail,
   startMatch,
+  takeOverScoring,
   undoLast,
 } from "./mutations";
 import { SPORTS } from "./sports";
 import type { Match, SideKey, SportKey } from "./types";
+
+const ORG = "@org";
 
 function newMatch(sport: SportKey = "badminton", format: Match["format"] = "singles"): Match {
   return startMatch(
@@ -31,13 +37,15 @@ function newMatch(sport: SportKey = "badminton", format: Match["format"] = "sing
         A: { name: "Riya", players: [{ name: "Riya" }] },
         B: { name: "Asha", players: [{ name: "Asha" }] },
       },
+      organiser: ORG,
     }),
+    ORG,
   );
 }
 
 function score(match: Match, sequence: string): Match {
   let m = match;
-  for (const ch of sequence) m = addPoint(m, ch as SideKey, "test").match;
+  for (const ch of sequence) m = addPoint(m, ch as SideKey, ORG).match;
   return m;
 }
 
@@ -82,7 +90,7 @@ describe("rally engine", () => {
   it("refuses points after the match is decided", () => {
     const m = score(newMatch(), "A".repeat(42));
     expect(state(m).winner).toBe("A");
-    expect(() => addPoint(m, "A", "test")).toThrow(MutationError);
+    expect(() => addPoint(m, "A", ORG)).toThrow(MutationError);
   });
 });
 
@@ -90,9 +98,9 @@ describe("undo until close", () => {
   it("undoes repeatedly and re-opens a finished set", () => {
     let m = score(newMatch(), "A".repeat(21));
     const last = state(m).points.at(-1)!.event.id;
-    m = undoLast(m, last, "test");
+    m = undoLast(m, last, ORG);
     expect(state(m).sets).toEqual([{ A: 20, B: 0, winner: null }]);
-    m = undoLast(m, state(m).points.at(-1)!.event.id, "test");
+    m = undoLast(m, state(m).points.at(-1)!.event.id, ORG);
     expect(state(m).sets[0].A).toBe(19);
   });
 
@@ -100,27 +108,27 @@ describe("undo until close", () => {
     let m = score(newMatch(), "A");
     const seen = state(m).points.at(-1)!.event.id;
     m = score(m, "B");
-    expect(() => undoLast(m, seen, "test")).toThrow(/score changed/);
+    expect(() => undoLast(m, seen, ORG)).toThrow(/score changed/);
   });
 
   it("blocks undo and scoring after close; organiser edits instead", () => {
-    let m = closeMatch(score(newMatch(), "AAB"), "scorer");
+    let m = closeMatch(score(newMatch(), "AAB"), ORG);
     const id = state(m).points[2].event.id;
-    expect(() => undoLast(m, id, "test")).toThrow(MutationError);
-    expect(() => editPoint(m, "scorer", "x", id, { side: "A" })).toThrow(/Only the organiser/);
-    m = editPoint(m, "organiser", "org", id, { side: "A" });
+    expect(() => undoLast(m, id, ORG)).toThrow(MutationError);
+    expect(() => editPoint(m, "@someone", id, { side: "A" })).toThrow(/Only the organiser/);
+    m = editPoint(m, ORG, id, { side: "A" });
     expect(state(m).sets[0]).toMatchObject({ A: 3, B: 0 });
     expect(m.history.map((h) => h.kind)).toEqual(["close", "edit"]);
   });
 
   it("lets the organiser insert and delete points, and re-open", () => {
-    let m = closeMatch(score(newMatch(), "AB"), "scorer");
+    let m = closeMatch(score(newMatch(), "AB"), ORG);
     const [first, second] = state(m).points.map((p) => p.event.id);
-    m = insertPoint(m, "organiser", "org", "B", second);
+    m = insertPoint(m, ORG, "B", second);
     expect(state(m).points.map((p) => p.event.side)).toEqual(["A", "B", "B"]);
-    m = deletePoint(m, "organiser", "org", first);
+    m = deletePoint(m, ORG, first);
     expect(state(m).sets[0]).toMatchObject({ A: 0, B: 2 });
-    m = reopenMatch(m, "organiser", "org");
+    m = reopenMatch(m, ORG);
     expect(m.status).toBe("live");
   });
 });
@@ -128,16 +136,16 @@ describe("undo until close", () => {
 describe("point detail and commentary", () => {
   it("records how the point was won and renders commentary", () => {
     let m = newMatch();
-    const added = addPoint(m, "A", "test");
-    m = setLatestPointDetail(added.match, added.event.id, { actionKey: "into_net" });
+    const added = addPoint(m, "A", ORG);
+    m = setLatestPointDetail(added.match, ORG, added.event.id, { actionKey: "into_net" });
     const lines = buildCommentary(m, state(m));
     expect(lines.find((l) => l.id === added.event.id)?.text).toBe("Asha puts it into the net, point to Riya");
   });
 
   it("only allows detail on the latest point", () => {
-    const first = addPoint(newMatch(), "A", "test");
-    const m = addPoint(first.match, "B", "test").match;
-    expect(() => setLatestPointDetail(m, first.event.id, { actionKey: "smash" })).toThrow(MutationError);
+    const first = addPoint(newMatch(), "A", ORG);
+    const m = addPoint(first.match, "B", ORG).match;
+    expect(() => setLatestPointDetail(m, ORG, first.event.id, { actionKey: "smash" })).toThrow(MutationError);
   });
 
   it("credits the chosen player in team matches", () => {
@@ -153,10 +161,12 @@ describe("point detail and commentary", () => {
           A: { name: "Eagles", players: [{ name: "Kiran", jersey: "7" }] },
           B: { name: "Hawks", players: [{ name: "Dev", jersey: "4" }] },
         },
+        organiser: ORG,
       }),
+      ORG,
     );
-    const added = addPoint(m, "A", "test");
-    m = setLatestPointDetail(added.match, added.event.id, { actorId: m.sides.A.players[0].id });
+    const added = addPoint(m, "A", ORG);
+    m = setLatestPointDetail(added.match, ORG, added.event.id, { actorId: m.sides.A.players[0].id });
     expect(buildCommentary(m, state(m)).at(-1)?.text).toBe("#7 Kiran scores a point for Eagles");
   });
 
@@ -181,15 +191,16 @@ describe("changing rules", () => {
       format: "singles",
       rules,
       sides: { A: { name: "Riya", players: [] }, B: { name: "Asha", players: [] } },
+      organiser: ORG,
     });
-    const m = changeRules(scheduled, { ...rules, pointsPerSet: 15, decidingSetPoints: 15, cap: null }, "scorer");
+    const m = changeRules(scheduled, { ...rules, pointsPerSet: 15, decidingSetPoints: 15, cap: null }, ORG);
     expect(m.rules.pointsPerSet).toBe(15);
     expect(m.ruleChanges).toEqual([]);
   });
 
   it("applies a live change from the current set and keeps finished sets", () => {
     let m = score(newMatch(), "A".repeat(21) + "AB".repeat(5)); // game 1 won 21-0, game 2 at 5-5
-    m = changeRules(m, { ...rules, pointsPerSet: 11, decidingSetPoints: 11, cap: 15 }, "scorer");
+    m = changeRules(m, { ...rules, pointsPerSet: 11, decidingSetPoints: 11, cap: 15 }, ORG);
     expect(state(m).sets[0]).toEqual({ A: 21, B: 0, winner: "A" });
     m = score(m, "AAAAA");
     expect(state(m).sets[1]).toEqual({ A: 10, B: 5, winner: null });
@@ -202,23 +213,74 @@ describe("changing rules", () => {
 
   it("refuses a change that would end the current set or match instantly", () => {
     const m = score(newMatch(), "A".repeat(12) + "B".repeat(3)); // 12-3
-    expect(() => changeRules(m, { ...rules, pointsPerSet: 11, decidingSetPoints: 11, cap: null }, "s")).toThrow(/end the current game immediately at 12–3/);
+    expect(() => changeRules(m, { ...rules, pointsPerSet: 11, decidingSetPoints: 11, cap: null }, ORG)).toThrow(/end the current game immediately at 12–3/);
     const oneGame = score(newMatch(), "A".repeat(21));
-    expect(() => changeRules(oneGame, { ...rules, bestOf: 1 }, "s")).toThrow(MutationError);
+    expect(() => changeRules(oneGame, { ...rules, bestOf: 1 }, ORG)).toThrow(MutationError);
   });
 
   it("validates rules and blocks changes after close", () => {
     const m = newMatch();
-    expect(() => changeRules(m, { ...rules, bestOf: 4 }, "s")).toThrow(/odd/);
-    expect(() => changeRules(m, { ...rules, cap: 10 }, "s")).toThrow(/cap/);
-    expect(() => changeRules(closeMatch(m, "s"), rules, "s")).toThrow(/closed/);
+    expect(() => changeRules(m, { ...rules, bestOf: 4 }, ORG)).toThrow(/odd/);
+    expect(() => changeRules(m, { ...rules, cap: 10 }, ORG)).toThrow(/cap/);
+    expect(() => changeRules(closeMatch(m, ORG), rules, ORG)).toThrow(/closed/);
   });
 
   it("can extend a match with a higher best of", () => {
     let m = score(newMatch(), "A".repeat(21) + "B".repeat(21) + "A".repeat(3));
-    m = changeRules(m, { ...rules, bestOf: 5 }, "s");
+    m = changeRules(m, { ...rules, bestOf: 5 }, ORG);
     m = score(m, "A".repeat(18));
     expect(state(m).winner).toBeNull(); // 2-1 in a best of 5
     expect(state(m).currentSet).toBe(3);
   });
 });
+
+describe("scoring access and control", () => {
+  const SCORER = "+919876543210";
+  const BACKUP = "backup@example.com";
+
+  it("lets only the active scorer change the score", () => {
+    let m = addScorer(newMatch(), ORG, SCORER);
+    expect(() => addPoint(m, "A", SCORER)).toThrow(/@org is scoring this match/);
+    expect(() => addPoint(m, "A", "@stranger")).toThrow(/don't have scoring access/);
+    m = handOverScoring(m, ORG, SCORER);
+    m = addPoint(m, "A", SCORER).match;
+    expect(() => addPoint(m, "A", ORG)).toThrow(/is scoring this match/);
+    expect(state(m).sets[0].A).toBe(1);
+  });
+
+  it("lets a scorer add a backup who takes over when the device dies", () => {
+    let m = addScorer(newMatch(), ORG, SCORER);
+    m = takeOverScoring(m, SCORER);
+    m = score2(m, SCORER, "AAB");
+    m = addScorer(m, SCORER, BACKUP); // the scorer adds a backup before their battery dies
+    m = takeOverScoring(m, BACKUP); // no approval needed from the scorer
+    m = score2(m, BACKUP, "B");
+    expect(state(m).sets[0]).toMatchObject({ A: 2, B: 2 });
+    expect(() => addPoint(m, "A", SCORER)).toThrow(/backup@example.com is scoring/);
+    const last = state(m).points.at(-1)!.event.id;
+    m = undoLast(m, last, BACKUP); // the new scorer continues with full control, including undo
+    expect(state(m).sets[0]).toMatchObject({ A: 2, B: 1 });
+    expect(m.history.map((h) => h.summary)).toContain("backup@example.com took over scoring from +919876543210");
+  });
+
+  it("refuses scorers without access and duplicate access", () => {
+    const m = newMatch();
+    expect(() => addScorer(m, "@stranger", SCORER)).toThrow(/don't have scoring access/);
+    expect(() => addScorer(addScorer(m, ORG, SCORER), ORG, SCORER)).toThrow(/already has scoring access/);
+    expect(() => takeOverScoring(m, "@stranger")).toThrow(/don't have scoring access/);
+  });
+
+  it("lets only the organiser remove a scorer, which also ends their control", () => {
+    let m = takeOverScoring(addScorer(newMatch(), ORG, SCORER), SCORER);
+    expect(() => removeScorer(m, SCORER, SCORER)).toThrow(/Only the organiser/);
+    m = removeScorer(m, ORG, SCORER);
+    expect(m.activeScorer).toBeUndefined();
+    expect(() => takeOverScoring(m, SCORER)).toThrow(/don't have scoring access/);
+  });
+});
+
+function score2(match: Match, by: string, sequence: string): Match {
+  let m = match;
+  for (const ch of sequence) m = addPoint(m, ch as SideKey, by).match;
+  return m;
+}

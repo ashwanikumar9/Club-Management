@@ -5,27 +5,25 @@ import { use, useState } from "react";
 import { MatchGate, Scoreboard, matchSubtitle, sideBg, useMatchView } from "@/components/match-ui";
 import { describePoint, playerName } from "@/lib/rally/commentary";
 import { other, type MatchState, type PointResult } from "@/lib/rally/engine";
-import { deletePoint, editPoint, insertPoint, reopenMatch } from "@/lib/rally/mutations";
+import { deletePoint, editPoint, insertPoint, isOrganiser, reopenMatch } from "@/lib/rally/mutations";
 import { SPORTS } from "@/lib/rally/sports";
 import type { Match, SideKey } from "@/lib/rally/types";
-import { updateMatch, useRole } from "@/lib/store";
+import { updateMatch, useUser } from "@/lib/store";
 
 /** Organiser-only correction of a closed match: edit, insert or delete any point, or re-open. */
 export function ClosedMatchEditor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { match, state } = useMatchView(id);
-  const role = useRole();
+  const user = useUser();
 
   return (
     <MatchGate match={match}>
       {(m) => {
-        if (role !== "organiser")
-          return (
-            <Notice match={m} text="Only the organiser or an admin can edit a closed match. Switch to Organiser at the top to try it in this prototype." />
-          );
+        if (!user || !isOrganiser(m, user))
+          return <Notice match={m} text={`Only the organiser (${m.organiser}) can edit a closed match.`} />;
         if (m.status !== "closed")
           return <Notice match={m} text="This match is still open. Use Undo on the scorer screen to fix mistakes until the match is closed." />;
-        return <Editor match={m} state={state!} />;
+        return <Editor match={m} state={state!} by={user} />;
       }}
     </MatchGate>
   );
@@ -42,10 +40,9 @@ function Notice({ match, text }: { match: Match; text: string }) {
   );
 }
 
-function Editor({ match, state }: { match: Match; state: MatchState }) {
+function Editor({ match, state, by }: { match: Match; state: MatchState; by: string }) {
   const [error, setError] = useState<string | null>(null);
   const sport = SPORTS[match.sport];
-  const by = "Organiser";
   const run = (mutation: (m: Match) => Match) => setError(updateMatch(match.id, mutation));
 
   return (
@@ -82,17 +79,17 @@ function Editor({ match, state }: { match: Match; state: MatchState }) {
                   {sport.setLabel} {p.setIndex + 1}
                 </div>
               )}
-              <InsertButtons onInsert={(side) => run((m) => insertPoint(m, "organiser", by, side, p.event.id))} match={match} />
-              <PointRow match={match} point={p} index={index} run={run} />
+              <InsertButtons onInsert={(side) => run((m) => insertPoint(m, by, side, p.event.id))} match={match} />
+              <PointRow match={match} point={p} index={index} run={run} by={by} />
             </li>
           );
         })}
       </ol>
-      <InsertButtons onInsert={(side) => run((m) => insertPoint(m, "organiser", by, side, null))} match={match} label="Add point at end" />
+      <InsertButtons onInsert={(side) => run((m) => insertPoint(m, by, side, null))} match={match} label="Add point at end" />
 
       <button
         type="button"
-        onClick={() => run((m) => reopenMatch(m, "organiser", by))}
+        onClick={() => run((m) => reopenMatch(m, by))}
         className="w-full rounded-xl border border-border bg-surface py-3 font-medium"
       >
         Re-open match for live scoring
@@ -143,14 +140,15 @@ function PointRow({
   point,
   index,
   run,
+  by,
 }: {
   match: Match;
   point: PointResult;
   index: number;
   run: (mutation: (m: Match) => Match) => void;
+  by: string;
 }) {
   const event = point.event;
-  const by = "Organiser";
   const credit = event.action?.credit ?? "winner";
   const playerSide = credit === "error" ? other(event.side) : event.side;
   const players = match.sides[playerSide].players;
@@ -163,7 +161,7 @@ function PointRow({
         <button
           type="button"
           title="Switch side"
-          onClick={() => run((m) => editPoint(m, "organiser", by, event.id, { side: other(event.side) }))}
+          onClick={() => run((m) => editPoint(m, by, event.id, { side: other(event.side) }))}
           className={`rounded-full px-2.5 py-0.5 text-xs font-semibold text-white ${sideBg[event.side]}`}
         >
           {match.sides[event.side].name} ⇄
@@ -173,7 +171,7 @@ function PointRow({
         </span>
         <button
           type="button"
-          onClick={() => run((m) => deletePoint(m, "organiser", by, event.id))}
+          onClick={() => run((m) => deletePoint(m, by, event.id))}
           className="rounded px-2 text-danger"
           aria-label="Delete point"
         >
@@ -187,7 +185,7 @@ function PointRow({
       <div className="mt-2 grid grid-cols-2 gap-2">
         <select
           value={event.action?.key ?? ""}
-          onChange={(e) => run((m) => editPoint(m, "organiser", by, event.id, { actionKey: e.target.value || null }))}
+          onChange={(e) => run((m) => editPoint(m, by, event.id, { actionKey: e.target.value || null }))}
           aria-label="How"
           className="text-sm"
         >
@@ -203,7 +201,7 @@ function PointRow({
         ) : (
           <select
             value={event.actorId ?? ""}
-            onChange={(e) => run((m) => editPoint(m, "organiser", by, event.id, { actorId: e.target.value || null }))}
+            onChange={(e) => run((m) => editPoint(m, by, event.id, { actorId: e.target.value || null }))}
             aria-label="Who"
             className="text-sm"
           >

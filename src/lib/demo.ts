@@ -3,7 +3,8 @@ import { SPORTS } from "./rally/sports";
 import type { Match, SideKey } from "./rally/types";
 
 /** Builds a few sample matches so the prototype can be explored without typing in teams. */
-export function demoMatches(): Match[] {
+export function demoMatches(organiser: string): Match[] {
+  const scorers = ["@court1", "+919876543210"];
   const badminton = createMatch({
     sport: "badminton",
     title: "Women's Singles · Semi-final",
@@ -15,16 +16,18 @@ export function demoMatches(): Match[] {
       A: { name: "Riya Sharma", players: [{ name: "Riya Sharma" }] },
       B: { name: "Asha Verma", players: [{ name: "Asha Verma" }] },
     },
+    organiser,
+    scorers,
   });
 
-  let live = startMatch(badminton);
+  let live = startMatch(badminton, organiser);
   const rallies: [SideKey, string | null][] = [
     ["A", "smash"], ["B", "drop"], ["A", "into_net"], ["A", null], ["B", "out"],
     ["A", "misjudged"], ["B", "smash"], ["A", "net_shot"], ["A", "service_fault"], ["B", null],
   ];
   for (const [side, actionKey] of rallies) {
-    const added = addPoint(live, side, "Scorer");
-    live = actionKey ? setLatestPointDetail(added.match, added.event.id, { actionKey }) : added.match;
+    const added = addPoint(live, side, organiser);
+    live = actionKey ? setLatestPointDetail(added.match, organiser, added.event.id, { actionKey }) : added.match;
   }
 
   const volleyball = createMatch({
@@ -50,6 +53,8 @@ export function demoMatches(): Match[] {
         ],
       },
     },
+    organiser,
+    scorers,
   });
 
   const tableTennis = createMatch({
@@ -63,6 +68,8 @@ export function demoMatches(): Match[] {
       A: { name: "Meera / Karan", players: [{ name: "Meera" }, { name: "Karan" }] },
       B: { name: "Sana / Rahul", players: [{ name: "Sana" }, { name: "Rahul" }] },
     },
+    organiser,
+    scorers,
   });
 
   return [live, volleyball, tableTennis];

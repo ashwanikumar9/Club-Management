@@ -3,16 +3,16 @@
 import Link from "next/link";
 import { use } from "react";
 import { CommentaryFeed, MatchGate, Scoreboard, matchSubtitle, useMatchView } from "@/components/match-ui";
-import { isCorrected } from "@/lib/rally/mutations";
+import { hasScoringAccess, isCorrected, isOrganiser } from "@/lib/rally/mutations";
 import { describeRules } from "@/lib/rally/rules";
 import { SPORTS } from "@/lib/rally/sports";
-import { useRole } from "@/lib/store";
+import { useUser } from "@/lib/store";
 
 /** Spectator view: read-only, updates live as the scorer records points. */
 export function PublicMatch({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { match, state, commentary } = useMatchView(id);
-  const role = useRole();
+  const user = useUser();
 
   return (
     <MatchGate match={match}>
@@ -43,12 +43,12 @@ export function PublicMatch({ params }: { params: Promise<{ id: string }> }) {
                 ▶ Watch live
               </a>
             )}
-            {m.status !== "closed" && (
+            {m.status !== "closed" && hasScoringAccess(m, user) && (
               <Link href={`/matches/${m.id}/score`} className="flex-1 rounded-xl border border-border bg-surface py-3 text-center font-medium">
                 Score this match
               </Link>
             )}
-            {m.status === "closed" && role === "organiser" && (
+            {m.status === "closed" && isOrganiser(m, user) && (
               <Link href={`/matches/${m.id}/edit`} className="flex-1 rounded-xl border border-border bg-surface py-3 text-center text-sm font-medium">
                 Edit points
               </Link>

@@ -10,7 +10,6 @@ import type {
   MatchFormat,
   Player,
   RallyRules,
-  Role,
   ScoreEvent,
   SideKey,
   SportKey,
@@ -33,6 +32,10 @@ export interface NewMatchInput {
   format: MatchFormat;
   rules: RallyRules;
   sides: Record<SideKey, { name: string; players: Omit<Player, "id">[] }>;
+  /** Identity key of the person creating the match. */
+  organiser: string;
+  /** Identity keys of people given scoring access up front. */
+  scorers?: string[];
 }
 
 export function createMatch(input: NewMatchInput): Match {
@@ -55,6 +58,10 @@ export function createMatch(input: NewMatchInput): Match {
     actions: structuredClone(sport.actions),
     settings: { askHow: true, askWho: input.format !== "singles" },
     sides: { A: toSide("A"), B: toSide("B") },
+    organiser: input.organiser,
+    scorers: [...new Set(input.scorers ?? [])]
+      .filter((user) => user !== input.organiser)
+      .map((user) => ({ user, addedBy: input.organiser, addedAt: now() })),
     status: "scheduled",
     createdAt: now(),
     events: [],
@@ -71,18 +78,87 @@ function requireLive(match: Match) {
   if (match.status !== "live") throw new MutationError("Scoring is only possible while the match is live.");
 }
 
-function requireOrganiserOnClosed(match: Match, role: Role) {
-  if (match.status !== "closed") throw new MutationError("This edit is only available after the match is closed.");
-  if (role !== "organiser") throw new MutationError("Only the organiser or an admin can edit a closed match.");
+export function isOrganiser(match: Match, user: string | null): boolean {
+  return !!user && match.organiser === user;
 }
 
-export function startMatch(match: Match): Match {
+/** Organiser or anyone given scoring access. */
+export function hasScoringAccess(match: Match, user: string | null): boolean {
+  return !!user && (isOrganiser(match, user) || match.scorers.some((s) => s.user === user));
+}
+
+function requireAccess(match: Match, by: string) {
+  if (!hasScoringAccess(match, by)) {
+    throw new MutationError("You don't have scoring access to this match. Ask the organiser or a scorer to add you.");
+  }
+}
+
+/** Single-scorer rule: only the person in control of scoring can change the score. */
+function requireActiveScorer(match: Match, by: string) {
+  requireAccess(match, by);
+  if (match.activeScorer !== by) {
+    throw new MutationError(
+      match.activeScorer
+        ? `${match.activeScorer} is scoring this match. Take over scoring to continue.`
+        : "Nobody is scoring this match. Take over scoring to continue.",
+    );
+  }
+}
+
+function requireOrganiserOnClosed(match: Match, by: string) {
+  if (match.status !== "closed") throw new MutationError("This edit is only available after the match is closed.");
+  if (!isOrganiser(match, by)) throw new MutationError("Only the organiser or an admin can edit a closed match.");
+}
+
+export function startMatch(match: Match, by: string): Match {
+  requireAccess(match, by);
   if (match.status !== "scheduled") throw new MutationError("Match has already started.");
-  return { ...match, status: "live", startedAt: now() };
+  return { ...match, status: "live", startedAt: now(), activeScorer: by };
+}
+
+/** Gives another person scoring access. Any scorer can do this, e.g. before their battery runs out. */
+export function addScorer(match: Match, by: string, user: string): Match {
+  requireAccess(match, by);
+  if (match.status === "closed") throw new MutationError("Scorers can't be added after the match is closed.");
+  if (hasScoringAccess(match, user)) throw new MutationError(`${user} already has scoring access.`);
+  const updated = { ...match, scorers: [...match.scorers, { user, addedBy: by, addedAt: now() }] };
+  return audit(updated, "scorer", by, `${by} gave scoring access to ${user}`);
+}
+
+export function removeScorer(match: Match, by: string, user: string): Match {
+  if (!isOrganiser(match, by)) throw new MutationError("Only the organiser can remove scorers.");
+  if (!match.scorers.some((s) => s.user === user)) throw new MutationError(`${user} is not a scorer on this match.`);
+  const updated = {
+    ...match,
+    scorers: match.scorers.filter((s) => s.user !== user),
+    activeScorer: match.activeScorer === user ? undefined : match.activeScorer,
+  };
+  return audit(updated, "scorer", by, `${by} removed scoring access for ${user}`);
+}
+
+/**
+ * Takes control of scoring. Needs no approval from the current scorer, because the usual reason is
+ * that their device has died; the change is logged and the previous scorer can no longer score.
+ */
+export function takeOverScoring(match: Match, by: string): Match {
+  requireAccess(match, by);
+  if (match.status !== "live") throw new MutationError("Scoring can only be taken over while the match is live.");
+  if (match.activeScorer === by) return match;
+  const from = match.activeScorer ? ` from ${match.activeScorer}` : "";
+  return audit({ ...match, activeScorer: by }, "scorer", by, `${by} took over scoring${from}`);
+}
+
+/** The current scorer passes control to another person with scoring access. */
+export function handOverScoring(match: Match, by: string, to: string): Match {
+  requireActiveScorer(match, by);
+  if (!hasScoringAccess(match, to)) throw new MutationError(`${to} doesn't have scoring access.`);
+  if (to === by) return match;
+  return audit({ ...match, activeScorer: to }, "scorer", by, `${by} handed scoring over to ${to}`);
 }
 
 export function addPoint(match: Match, side: SideKey, by: string): { match: Match; event: ScoreEvent } {
   requireLive(match);
+  requireActiveScorer(match, by);
   if (matchState(match).winner) {
     throw new MutationError("The match is already decided. Close the match or undo the last point.");
   }
@@ -121,8 +197,9 @@ function applyDetail(match: Match, event: ScoreEvent, detail: PointDetail): Scor
 }
 
 /** Adds "how" / "who" detail to the point that was just scored (only the latest point, while live). */
-export function setLatestPointDetail(match: Match, eventId: string, detail: PointDetail): Match {
+export function setLatestPointDetail(match: Match, by: string, eventId: string, detail: PointDetail): Match {
   requireLive(match);
+  requireActiveScorer(match, by);
   const last = activeEvents(match.events).at(-1);
   if (!last || last.id !== eventId) {
     throw new MutationError("A newer point has been recorded. Use undo to correct earlier points.");
@@ -136,6 +213,7 @@ export function setLatestPointDetail(match: Match, eventId: string, detail: Poin
  */
 export function undoLast(match: Match, expectedEventId: string, by: string): Match {
   requireLive(match);
+  requireActiveScorer(match, by);
   const last = activeEvents(match.events).at(-1);
   if (!last) throw new MutationError("Nothing to undo.");
   if (last.id !== expectedEventId) {
@@ -149,16 +227,19 @@ export function undoLast(match: Match, expectedEventId: string, by: string): Mat
 
 export function closeMatch(match: Match, by: string): Match {
   requireLive(match);
+  if (!isOrganiser(match, by)) requireActiveScorer(match, by);
   const state = matchState(match);
   const result = state.winner
     ? `${match.sides[state.winner].name} won ${state.setsWon[state.winner]}–${state.setsWon[state.winner === "A" ? "B" : "A"]}`
     : "no result";
-  return audit({ ...match, status: "closed", closedAt: now(), closedBy: by }, "close", by, `Match closed (${result})`);
+  const closed = { ...match, status: "closed" as const, closedAt: now(), closedBy: by, activeScorer: undefined };
+  return audit(closed, "close", by, `Match closed (${result})`);
 }
 
-export function reopenMatch(match: Match, role: Role, by: string): Match {
-  requireOrganiserOnClosed(match, role);
-  return audit({ ...match, status: "live", closedAt: undefined, closedBy: undefined }, "reopen", by, "Match re-opened");
+export function reopenMatch(match: Match, by: string): Match {
+  requireOrganiserOnClosed(match, by);
+  const reopened = { ...match, status: "live" as const, closedAt: undefined, closedBy: undefined, activeScorer: by };
+  return audit(reopened, "reopen", by, "Match re-opened");
 }
 
 function summarise(match: Match, event: ScoreEvent) {
@@ -167,12 +248,11 @@ function summarise(match: Match, event: ScoreEvent) {
 
 export function editPoint(
   match: Match,
-  role: Role,
   by: string,
   eventId: string,
   change: PointDetail & { side?: SideKey },
 ): Match {
-  requireOrganiserOnClosed(match, role);
+  requireOrganiserOnClosed(match, by);
   const event = match.events.find((e) => e.id === eventId && !e.undoneAt && !e.deletedAt);
   if (!event) throw new MutationError("Point not found.");
   let next = applyDetail(match, event, change);
@@ -184,8 +264,8 @@ export function editPoint(
 }
 
 /** Inserts a missed point before `beforeEventId` (or at the end when null). */
-export function insertPoint(match: Match, role: Role, by: string, side: SideKey, beforeEventId: string | null): Match {
-  requireOrganiserOnClosed(match, role);
+export function insertPoint(match: Match, by: string, side: SideKey, beforeEventId: string | null): Match {
+  requireOrganiserOnClosed(match, by);
   const list = activeEvents(match.events);
   let order: number;
   if (beforeEventId === null) {
@@ -201,8 +281,8 @@ export function insertPoint(match: Match, role: Role, by: string, side: SideKey,
   return audit(updated, "insert", by, `Added missed point: ${summarise(match, event)}`, event.id);
 }
 
-export function deletePoint(match: Match, role: Role, by: string, eventId: string): Match {
-  requireOrganiserOnClosed(match, role);
+export function deletePoint(match: Match, by: string, eventId: string): Match {
+  requireOrganiserOnClosed(match, by);
   const event = match.events.find((e) => e.id === eventId && !e.undoneAt && !e.deletedAt);
   if (!event) throw new MutationError("Point not found.");
   const updated = { ...match, events: match.events.map((e) => (e.id === eventId ? { ...e, deletedAt: now() } : e)) };
@@ -219,7 +299,9 @@ export function changeRules(match: Match, rules: RallyRules, by: string): Match 
   const invalid = validateRules(rules);
   if (invalid) throw new MutationError(invalid);
   if (match.status === "closed") throw new MutationError("Rules cannot be changed after the match is closed.");
+  requireAccess(match, by);
   if (match.status === "scheduled") return { ...match, rules: { ...rules } };
+  if (!isOrganiser(match, by)) requireActiveScorer(match, by);
 
   const before = matchState(match);
   const fromSet = before.currentSet;
@@ -245,11 +327,13 @@ export function changeRules(match: Match, rules: RallyRules, by: string): Match 
   return audit(updated, "rules", by, `Rules changed from ${label} ${fromSet + 1}: ${describeRules(rules, label)}`);
 }
 
-export function updateSettings(match: Match, settings: Partial<DetailSettings>): Match {
+export function updateSettings(match: Match, by: string, settings: Partial<DetailSettings>): Match {
+  requireAccess(match, by);
   return { ...match, settings: { ...match.settings, ...settings } };
 }
 
-export function updateActions(match: Match, actions: ActionDef[]): Match {
+export function updateActions(match: Match, by: string, actions: ActionDef[]): Match {
+  requireAccess(match, by);
   return { ...match, actions };
 }
 

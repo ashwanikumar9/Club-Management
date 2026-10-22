@@ -3,23 +3,35 @@
 import Link from "next/link";
 import { use } from "react";
 import { MatchGate, matchSubtitle, useMatchView } from "@/components/match-ui";
-import { newId, updateActions, updateSettings } from "@/lib/rally/mutations";
+import { hasScoringAccess, newId, updateActions, updateSettings } from "@/lib/rally/mutations";
 import { SPORTS } from "@/lib/rally/sports";
 import type { ActionDef, Match } from "@/lib/rally/types";
-import { updateMatch } from "@/lib/store";
+import { updateMatch, useUser } from "@/lib/store";
 
 /** Shot-type catalogue and detail toggles. Editable at any time; changes apply to new points only. */
 export function MatchSettings({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { match } = useMatchView(id);
-  return <MatchGate match={match}>{(m) => <Editor match={m} />}</MatchGate>;
+  const user = useUser();
+  return (
+    <MatchGate match={match}>
+      {(m) =>
+        hasScoringAccess(m, user) ? (
+          <Editor match={m} />
+        ) : (
+          <p className="py-10 text-center text-muted">Only the organiser and scorers of this match can change scoring detail.</p>
+        )
+      }
+    </MatchGate>
+  );
 }
 
 function Editor({ match }: { match: Match }) {
-  const save = (actions: ActionDef[]) => updateMatch(match.id, (m) => updateActions(m, actions));
+  const user = useUser() ?? "";
+  const save = (actions: ActionDef[]) => updateMatch(match.id, (m) => updateActions(m, user, actions));
   const change = (key: string, patch: Partial<ActionDef>) =>
     save(match.actions.map((a) => (a.key === key ? { ...a, ...patch } : a)));
-  const toggle = (key: "askHow" | "askWho") => updateMatch(match.id, (m) => updateSettings(m, { [key]: !m.settings[key] }));
+  const toggle = (key: "askHow" | "askWho") => updateMatch(match.id, (m) => updateSettings(m, user, { [key]: !m.settings[key] }));
 
   return (
     <div className="space-y-5 pb-10">

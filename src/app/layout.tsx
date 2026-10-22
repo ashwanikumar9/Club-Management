@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { RoleSwitch } from "@/components/RoleSwitch";
+import { UserMenu } from "@/components/UserMenu";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="font-semibold tracking-tight">
               Rally Scorer <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-normal text-muted">prototype</span>
             </Link>
-            <RoleSwitch />
+            <UserMenu />
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4">{children}</main>

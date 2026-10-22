@@ -7,11 +7,23 @@ import { Sheet } from "@/components/Sheet";
 import { describePoint, playerName } from "@/lib/rally/commentary";
 import { other, type MatchState } from "@/lib/rally/engine";
 import { RulesFields } from "@/components/RulesFields";
-import { addPoint, changeRules, closeMatch, setLatestPointDetail, startMatch, undoLast, updateSettings } from "@/lib/rally/mutations";
+import { ScorersPanel } from "@/components/ScorersPanel";
+import {
+  addPoint,
+  changeRules,
+  closeMatch,
+  hasScoringAccess,
+  isOrganiser,
+  setLatestPointDetail,
+  startMatch,
+  takeOverScoring,
+  undoLast,
+  updateSettings,
+} from "@/lib/rally/mutations";
 import { describeRules } from "@/lib/rally/rules";
 import { SPORTS } from "@/lib/rally/sports";
 import type { ActionCredit, Match, RallyRules, SideKey } from "@/lib/rally/types";
-import { updateMatch, useRole } from "@/lib/store";
+import { updateMatch, useUser } from "@/lib/store";
 
 type Pending = { eventId: string; side: SideKey; step: "how" | "who"; credit: ActionCredit };
 
@@ -34,11 +46,14 @@ function Scorer({
   state: MatchState;
   commentary: ReturnType<typeof useMatchView>["commentary"];
 }) {
-  const role = useRole();
-  const by = role === "organiser" ? "Organiser" : "Scorer";
+  const user = useUser();
+  const by = user ?? "";
+  const organiser = isOrganiser(match, user);
+  const inControl = !!user && match.activeScorer === user;
   const [pending, setPending] = useState<Pending | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [confirmTakeOver, setConfirmTakeOver] = useState(false);
   const sport = SPORTS[match.sport];
 
   const enabledActions = match.actions.filter((a) => a.enabled);
@@ -66,7 +81,7 @@ function Scorer({
 
   function chooseAction(actionKey: string, credit: ActionCredit) {
     if (!pending) return;
-    const err = updateMatch(match.id, (m) => setLatestPointDetail(m, pending.eventId, { actionKey }));
+    const err = updateMatch(match.id, (m) => setLatestPointDetail(m, by, pending.eventId, { actionKey }));
     if (err) {
       setError(err);
       setPending(null);
@@ -79,8 +94,25 @@ function Scorer({
 
   function choosePlayer(actorId: string) {
     if (!pending) return;
-    setError(updateMatch(match.id, (m) => setLatestPointDetail(m, pending.eventId, { actorId })));
+    setError(updateMatch(match.id, (m) => setLatestPointDetail(m, by, pending.eventId, { actorId })));
     setPending(null);
+  }
+
+  if (!user || !hasScoringAccess(match, user)) {
+    return (
+      <div className="space-y-4">
+        <Header match={match} />
+        <Scoreboard match={match} state={state} />
+        <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
+          <p className="font-semibold">{user ? "You don't have scoring access" : "Sign in to score"}</p>
+          <p className="mt-1 text-muted">
+            {user
+              ? `Ask the organiser or a scorer of this match to add ${user}.`
+              : "Sign in (top right) with the mobile number, email or username you were added with."}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (match.status === "scheduled") {
@@ -89,14 +121,17 @@ function Scorer({
         <Header match={match} />
         <Scoreboard match={match} state={state} />
         <RulesPanel match={match} state={state} by={by} />
+        {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
         <button
           type="button"
-          onClick={() => run(startMatch)}
+          onClick={() => run((m) => startMatch(m, by))}
           className="w-full rounded-2xl bg-accent py-5 text-lg font-bold text-white"
         >
           Start match
         </button>
-        <SettingsBar match={match} />
+        <p className="-mt-2 text-center text-xs text-muted">You will be the scorer. Anyone below can take over later.</p>
+        <SettingsBar match={match} by={by} />
+        <ScorersPanel match={match} user={user} />
       </div>
     );
   }
@@ -108,18 +143,73 @@ function Scorer({
         <Scoreboard match={match} state={state} />
         <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
           <p className="font-semibold">This match is closed.</p>
-          {role === "organiser" ? (
+          {organiser ? (
             <p className="mt-1 text-muted">As organiser you can correct points or re-open the match.</p>
           ) : (
             <p className="mt-1 text-muted">Scores can no longer be changed by scorers. Ask the organiser for corrections.</p>
           )}
-          {role === "organiser" && (
+          {organiser && (
             <Link href={`/matches/${match.id}/edit`} className="mt-3 inline-block rounded-lg bg-foreground px-4 py-2 font-semibold text-background">
               Edit points
             </Link>
           )}
         </div>
         <CommentaryFeed match={match} lines={commentary} />
+      </div>
+    );
+  }
+
+  if (!inControl) {
+    return (
+      <div className="space-y-4 pb-6">
+        <Header match={match} />
+        <Scoreboard match={match} state={state} compact />
+        <div className="rounded-2xl border-2 border-border bg-surface p-4">
+          <p className="font-semibold">
+            {match.activeScorer ? `${match.activeScorer} is scoring this match` : "Nobody is scoring right now"}
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            {match.activeScorer
+              ? "Only one person scores at a time. If their phone has died or they can't continue, take over and carry on from the current score."
+              : "Take over to continue scoring from the current score."}
+          </p>
+          {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+          <button
+            type="button"
+            onClick={() => (match.activeScorer ? setConfirmTakeOver(true) : run((m) => takeOverScoring(m, by)))}
+            className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background"
+          >
+            Take over scoring
+          </button>
+        </div>
+        <ScorersPanel match={match} user={user} />
+        <section>
+          <h2 className="mb-2 mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Commentary</h2>
+          <CommentaryFeed match={match} lines={commentary} limit={12} />
+        </section>
+        {confirmTakeOver && (
+          <Sheet title="Take over scoring?" onClose={() => setConfirmTakeOver(false)}>
+            <p className="text-sm">
+              {match.activeScorer} will no longer be able to score. Do this if their device has died or they have handed the
+              match to you.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setConfirmTakeOver(false)} className="rounded-xl border border-border py-3 font-medium">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  run((m) => takeOverScoring(m, by));
+                  setConfirmTakeOver(false);
+                }}
+                className="rounded-xl bg-foreground py-3 font-bold text-background"
+              >
+                Take over
+              </button>
+            </div>
+          </Sheet>
+        )}
       </div>
     );
   }
@@ -181,7 +271,9 @@ function Scorer({
         </span>
       </button>
 
-      <SettingsBar match={match} />
+      <SettingsBar match={match} by={by} />
+
+      <ScorersPanel match={match} user={user} />
 
       <section>
         <h2 className="mb-2 mt-4 text-sm font-semibold uppercase tracking-wide text-muted">Commentary</h2>
@@ -365,9 +457,9 @@ function Header({ match }: { match: Match }) {
   );
 }
 
-function SettingsBar({ match }: { match: Match }) {
+function SettingsBar({ match, by }: { match: Match; by: string }) {
   const toggle = (key: "askHow" | "askWho") =>
-    updateMatch(match.id, (m) => updateSettings(m, { [key]: !m.settings[key] }));
+    updateMatch(match.id, (m) => updateSettings(m, by, { [key]: !m.settings[key] }));
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <span className="text-muted">Ask after each point:</span>

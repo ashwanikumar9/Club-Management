@@ -1,10 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 
-/** Bottom sheet on phones, centred dialog on larger screens. */
+/**
+ * Bottom sheet on phones, centred dialog on larger screens. Rendered into <body> so that ancestors with
+ * effects like backdrop blur (the sticky header) can't trap the fixed overlay inside themselves.
+ */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" aria-label="Close" className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-4 pb-6 shadow-xl sm:rounded-2xl">
@@ -12,6 +16,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         <h2 className="mb-3 font-semibold">{title}</h2>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

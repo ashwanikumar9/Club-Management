@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { IdentityForm } from "@/components/IdentityForm";
 import { RulesFields } from "@/components/RulesFields";
+import { IDENTITY_ICON, identityKind } from "@/lib/identity";
 import { createMatch } from "@/lib/rally/mutations";
 import { validateRules } from "@/lib/rally/rules";
 import { FORMAT_LABELS, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
 import type { MatchFormat, RallyRules, SideKey, SportKey } from "@/lib/rally/types";
-import { saveMatch } from "@/lib/store";
+import { saveMatch, useUser } from "@/lib/store";
 
 interface PlayerRow {
   name: string;
@@ -44,7 +46,9 @@ export function NewMatchForm() {
   const [venue, setVenue] = useState("");
   const [livestreamUrl, setLivestreamUrl] = useState("");
   const [sides, setSides] = useState<Record<SideKey, SideForm>>({ A: emptySide("singles"), B: emptySide("singles") });
+  const [scorers, setScorers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const user = useUser();
 
   const config = SPORTS[sport];
 
@@ -89,9 +93,29 @@ export function NewMatchForm() {
       return;
     }
     const sideInput = (side: SideKey) => ({ name: names(side), players: sides[side].players });
-    const match = createMatch({ sport, title, venue, livestreamUrl, format, rules, sides: { A: sideInput("A"), B: sideInput("B") } });
+    if (!user) return;
+    const match = createMatch({
+      sport,
+      title,
+      venue,
+      livestreamUrl,
+      format,
+      rules,
+      sides: { A: sideInput("A"), B: sideInput("B") },
+      organiser: user,
+      scorers,
+    });
     saveMatch(match);
     router.push(`/matches/${match.id}/score`);
+  }
+
+  if (!user) {
+    return (
+      <div className="space-y-3 py-6 text-center">
+        <h1 className="text-xl font-bold">New match</h1>
+        <p className="text-muted">Sign in first (top right). You become the organiser of matches you create.</p>
+      </div>
+    );
   }
 
   return (
@@ -201,6 +225,40 @@ export function NewMatchForm() {
         <h2 className="font-semibold">Rules</h2>
         <p className="text-xs text-muted">Pre-filled with standard {config.name} rules. The scorer can still change them before the start and during the match.</p>
         <RulesFields rules={rules} setLabel={config.setLabel} onChange={setRules} />
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+        <h2 className="font-semibold">Scorers</h2>
+        <p className="text-xs text-muted">
+          You ({user}) can always score as organiser. Add people who may score this match; one scores at a time and any of
+          them can take over, e.g. if a phone dies. Scorers can add more people later.
+        </p>
+        {scorers.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {scorers.map((s) => (
+              <li key={s} className="flex items-center gap-1.5 rounded-full bg-surface-2 py-1 pl-3 pr-1 text-sm">
+                {IDENTITY_ICON[identityKind(s)]} {s}
+                <button
+                  type="button"
+                  aria-label={`Remove ${s}`}
+                  onClick={() => setScorers(scorers.filter((x) => x !== s))}
+                  className="rounded-full px-2 text-muted"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <IdentityForm
+          submitLabel="Add"
+          onSubmit={(key) => {
+            if (key === user) return "You're the organiser, so you can already score.";
+            if (scorers.includes(key)) return `${key} is already added.`;
+            setScorers([...scorers, key]);
+            return null;
+          }}
+        />
       </section>
 
       <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
