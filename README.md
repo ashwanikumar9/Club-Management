@@ -7,7 +7,11 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 
 - **Tournaments** (CricHeroes-style): league, seeded knockout, or groups → knockout. Add entries and seeds,
   create groups and assign entries manually or automatically by seed, generate fixtures, follow points
-  tables and the bracket; winners move on automatically and the champion is shown
+  tables and the bracket; winners move on automatically and the champion is shown. Optional third-place match
+- **Team ties** (badminton / table tennis): two teams with player lists play 1–9 matches; line-ups are entered in
+  advance or picked (singles / doubles and players) as each match starts; the tie stops once a team wins the
+  majority, unless the organiser chooses to play all matches. Works standalone and inside tournaments
+- **Retirements, walkovers and no result** when closing an unfinished match; awarded matches count as wins
 - Create a single match (singles / doubles, or team for volleyball) with standard rules pre-filled and editable
 - Scorer sets the rules before the start and can change them at any time during the match
   (e.g. shorter games because of weather); changes apply from the current set and are announced
@@ -66,6 +70,8 @@ npm start -- -H 0.0.0.0   # then open http://<computer-ip>:3000 on the phone
 | `src/lib/tournament/engine.ts` | Round-robin, seeded brackets, groups, points tables, advancement |
 | `src/lib/tournament/mutations.ts` | Tournament setup, fixture generation, knockout start, sync with results |
 | `src/app/tournaments/[id]` | Tournament page: entries, groups / table, fixtures, bracket |
+| `src/lib/tie/tie.ts` | Team ties: line-ups, match creation, tie score and winner |
+| `src/app/ties/[id]` | Tie page: team score, matches, line-up picker |
 | `src/lib/identity.ts` | Mobile / email / username parsing and normalisation |
 | `src/lib/store.ts` | Prototype storage (to be replaced by Supabase) |
 | `src/app/matches/[id]/score` | Scorer screen |

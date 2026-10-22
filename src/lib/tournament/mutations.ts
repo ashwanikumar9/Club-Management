@@ -2,18 +2,22 @@ import { MutationError, addScorer, createMatch, newId } from "../rally/mutations
 import { validateRules } from "../rally/rules";
 import { SPORTS } from "../rally/sports";
 import type { Match, MatchFormat, RallyRules, SportKey } from "../rally/types";
+import { createTie } from "../tie/tie";
+import type { Tie } from "../tie/types";
 import {
   buildKnockout,
-  champion,
   groupStageComplete,
   isByeFixture,
+  fixtureOutcome,
   qualifiers,
   resolveSides,
   roundName,
   roundRobin,
   seedOrder,
   snakeAssign,
-  type Matches,
+  thirdPlaceFixture,
+  tournamentFinished,
+  type Data,
 } from "./engine";
 import type { Entry, EntryPlayer, Fixture, PointsConfig, Structure, Tournament } from "./types";
 
@@ -30,12 +34,25 @@ export interface NewTournamentInput {
   rules: RallyRules;
   points: PointsConfig;
   structure: Structure;
+  thirdPlace?: boolean;
+  /** Matches per tie for badminton / table tennis team events. */
+  tieMatchCount?: number;
+}
+
+/** Whether fixtures are team ties (badminton / table tennis team events) rather than single matches. */
+export function usesTies(t: Pick<Tournament, "sport" | "format">): boolean {
+  return t.format === "team" && t.sport !== "volleyball";
 }
 
 export function createTournament(input: NewTournamentInput): Tournament {
   if (!input.name.trim()) throw new MutationError("Give the tournament a name.");
   const invalid = validateRules(input.rules);
   if (invalid) throw new MutationError(invalid);
+  const ties = usesTies(input);
+  const tieMatchCount = input.tieMatchCount ?? 5;
+  if (ties && (!Number.isInteger(tieMatchCount) || tieMatchCount < 1 || tieMatchCount > 9 || tieMatchCount % 2 === 0)) {
+    throw new MutationError("A tie has an odd number of matches between 1 and 9.");
+  }
   return {
     id: newId(),
     name: input.name.trim(),
@@ -49,6 +66,8 @@ export function createTournament(input: NewTournamentInput): Tournament {
     points: { ...input.points },
     structure: input.structure,
     qualifiersPerGroup: 2,
+    thirdPlace: input.thirdPlace ?? false,
+    tieMatchCount: ties ? tieMatchCount : undefined,
     entries: [],
     groups: input.structure === "groups_knockout" ? makeGroups(2) : [],
     fixtures: [],
@@ -130,6 +149,26 @@ export function setQualifiers(t: Tournament, by: string, perGroup: number): Tour
   return { ...t, qualifiersPerGroup: perGroup };
 }
 
+/**
+ * Turns the third-place match on or off. Before fixtures exist this is just a setting; once the knockout
+ * exists the play-off is added, or removed if it hasn't been created as a match yet.
+ */
+export function setThirdPlace(t: Tournament, by: string, on: boolean): Tournament {
+  requireOrganiser(t, by);
+  if (t.structure === "league") throw new MutationError("A league has no knockout, so there's no third-place match.");
+  const existing = t.fixtures.find((f) => f.third);
+  if (on && !existing && t.fixtures.some((f) => f.stage === "knockout")) {
+    const fixture = thirdPlaceFixture(t.fixtures, newId);
+    if (!fixture) throw new MutationError("The bracket has no semi-finals, so there's no third-place match.");
+    return { ...t, thirdPlace: true, fixtures: [...t.fixtures, fixture], phase: t.phase === "complete" ? "knockout" : t.phase };
+  }
+  if (!on && existing) {
+    if (existing.matchId || existing.tieId) throw new MutationError("The third-place match has already been set up and can't be removed.");
+    return { ...t, thirdPlace: false, fixtures: t.fixtures.filter((f) => !f.third) };
+  }
+  return { ...t, thirdPlace: on };
+}
+
 export function assignToGroup(t: Tournament, by: string, entryId: string, groupId: string | null): Tournament {
   requireOrganiser(t, by);
   requireSetup(t);
@@ -158,13 +197,18 @@ export function renameGroup(t: Tournament, by: string, groupId: string, name: st
 }
 
 /** Adds a scorer to the tournament and to every match not yet closed. */
-export function addTournamentScorer(t: Tournament, matches: Match[], by: string, user: string) {
+export function addTournamentScorer(t: Tournament, data: Data, by: string, user: string) {
   requireOrganiser(t, by);
   if (user === t.organiser || t.scorers.includes(user)) throw new MutationError(`${user} already has scoring access.`);
-  const updatedMatches = matches
-    .filter((m) => m.tournament?.id === t.id && m.status !== "closed" && !m.scorers.some((s) => s.user === user))
+  const tieIds = new Set(t.fixtures.map((f) => f.tieId).filter(Boolean));
+  const ties = Object.values(data.ties)
+    .filter((x) => tieIds.has(x.id) && !x.scorers.includes(user))
+    .map((x) => ({ ...x, scorers: [...x.scorers, user] }));
+  const inTournament = (m: Match) => m.tournament?.id === t.id || (!!m.tie && tieIds.has(m.tie.id));
+  const updatedMatches = Object.values(data.matches)
+    .filter((m) => inTournament(m) && m.status !== "closed" && !m.scorers.some((s) => s.user === user))
     .map((m) => addScorer(m, by, user));
-  return { tournament: { ...t, scorers: [...t.scorers, user] }, matches: updatedMatches };
+  return { tournament: { ...t, scorers: [...t.scorers, user] }, matches: updatedMatches, ties };
 }
 
 export function removeTournamentScorer(t: Tournament, by: string, user: string): Tournament {
@@ -183,9 +227,10 @@ export function fixtureLabel(t: Tournament, f: Fixture): string {
     const group = t.groups.find((g) => g.id === f.groupId);
     return t.structure === "league" ? `League · Round ${f.round}` : `${group?.name ?? "Group"} · Round ${f.round}`;
   }
+  if (f.third) return "Third place";
   const rounds = Math.max(...t.fixtures.filter((x) => x.stage === "knockout").map((x) => x.round));
   const name = roundName(f.round, rounds);
-  const inRound = t.fixtures.filter((x) => x.stage === "knockout" && x.round === f.round).length;
+  const inRound = t.fixtures.filter((x) => x.stage === "knockout" && x.round === f.round && !x.third).length;
   return inRound > 1 ? `${name} · Match ${f.index + 1}` : name;
 }
 
@@ -211,26 +256,58 @@ function matchForFixture(t: Tournament, f: Fixture, a: string, b: string): Match
   };
 }
 
-/** Creates matches for fixtures whose two sides are now known. */
-function createReadyMatches(t: Tournament, matches: Matches): { tournament: Tournament; created: Match[] } {
+function tieForFixture(t: Tournament, f: Fixture, a: string, b: string): Tie {
+  const ea = entryById(t, a);
+  const eb = entryById(t, b);
+  const label = fixtureLabel(t, f);
+  const tie = createTie({
+    sport: t.sport as Tie["sport"],
+    title: `${t.name} · ${label} · ${ea.name} vs ${eb.name}`,
+    venue: t.venue,
+    rules: t.rules,
+    teams: { A: { name: ea.name, players: ea.players, entryId: a }, B: { name: eb.name, players: eb.players, entryId: b } },
+    matchCount: t.tieMatchCount ?? 5,
+    lineupMode: "at_start",
+    organiser: t.organiser,
+    scorers: t.scorers,
+  });
+  return { ...tie, tournament: { id: t.id, fixtureId: f.id, label } };
+}
+
+export interface Created {
+  tournament: Tournament;
+  created: Match[];
+  ties: Tie[];
+}
+
+/** Creates the match (or team tie) for each fixture whose two sides are now known. */
+function createReady(t: Tournament, data: Data): Created {
   const created: Match[] = [];
-  const all = { ...matches };
+  const ties: Tie[] = [];
+  const all: Data = { matches: { ...data.matches }, ties: { ...data.ties } };
   const fixtures = t.fixtures.map((f) => ({ ...f }));
   const withFixtures = { ...t, fixtures };
   for (const f of fixtures) {
-    if (f.matchId || isByeFixture(f)) continue;
+    if (f.matchId || f.tieId || isByeFixture(f)) continue;
     const { a, b } = resolveSides(f, fixtures, all);
     if (!a || !b) continue;
-    const match = matchForFixture(withFixtures, f, a, b);
-    f.matchId = match.id;
-    all[match.id] = match;
-    created.push(match);
+    if (usesTies(t)) {
+      const tie = tieForFixture(withFixtures, f, a, b);
+      f.tieId = tie.id;
+      all.ties[tie.id] = tie;
+      ties.push(tie);
+    } else {
+      const match = matchForFixture(withFixtures, f, a, b);
+      f.matchId = match.id;
+      all.matches[match.id] = match;
+      created.push(match);
+    }
   }
-  return { tournament: withFixtures, created };
+  return { tournament: withFixtures, created, ties };
 }
 
 /** Locks entries and groups and creates the fixtures (and the matches that can be played now). */
-export function generateFixtures(t: Tournament, by: string, matches: Matches) {
+export function generateFixtures(t: Tournament, by: string, data: Data): Created {
   requireOrganiser(t, by);
   requireSetup(t);
   if (t.entries.length < 2) throw new MutationError("Add at least two entries.");
@@ -238,7 +315,7 @@ export function generateFixtures(t: Tournament, by: string, matches: Matches) {
   let next: Tournament;
   if (t.structure === "knockout") {
     const ranked = seedOrder(t.entries).map((e) => e.id);
-    next = { ...t, fixtures: buildKnockout(ranked, newId), phase: "knockout" };
+    next = { ...t, fixtures: buildKnockout(ranked, newId, t.thirdPlace), phase: "knockout" };
   } else {
     const groups = t.structure === "league" ? [{ id: newId(), name: "League", entryIds: t.entries.map((e) => e.id) }] : t.groups;
     if (t.structure === "groups_knockout") {
@@ -266,48 +343,60 @@ export function generateFixtures(t: Tournament, by: string, matches: Matches) {
     );
     next = { ...t, groups, fixtures, phase: "groups" };
   }
-  return createReadyMatches(next, matches);
+  return createReady(next, data);
 }
 
 /** Groups → knockout: once every group match has a result, seeds the qualifiers into the bracket. */
-export function startKnockout(t: Tournament, by: string, matches: Matches) {
+export function startKnockout(t: Tournament, by: string, data: Data): Created {
   requireOrganiser(t, by);
   if (t.structure !== "groups_knockout" || t.phase !== "groups") throw new MutationError("The knockout can't be started now.");
-  if (!groupStageComplete(t, matches)) throw new MutationError("Finish and close every group match first.");
-  const ranked = qualifiers(t, matches);
-  const knockout = buildKnockout(ranked, newId);
-  return createReadyMatches({ ...t, fixtures: [...t.fixtures, ...knockout], phase: "knockout" }, matches);
+  if (!groupStageComplete(t, data)) throw new MutationError("Finish and close every group match first.");
+  const ranked = qualifiers(t, data);
+  const knockout = buildKnockout(ranked, newId, t.thirdPlace);
+  return createReady({ ...t, fixtures: [...t.fixtures, ...knockout], phase: "knockout" }, data);
 }
 
 /**
- * Brings the tournament up to date with match results: creates knockout matches that became ready,
- * corrects the sides of matches not yet started if an earlier result was edited, and marks the
- * tournament complete. Returns the same tournament object and no matches when nothing changed.
+ * Brings the tournament up to date with results: creates knockout matches / ties that became ready,
+ * corrects the sides of ones not yet started if an earlier result was edited, and marks the tournament
+ * complete. Returns the same tournament object and empty lists when nothing changed.
  */
-export function syncTournament(t: Tournament, matches: Matches): { tournament: Tournament; created: Match[]; updated: Match[] } {
-  if (t.phase === "setup") return { tournament: t, created: [], updated: [] };
+export function syncTournament(t: Tournament, data: Data): Created & { updated: Match[]; updatedTies: Tie[] } {
+  const none = { tournament: t, created: [], ties: [], updated: [], updatedTies: [] };
+  if (t.phase === "setup") return none;
   const updated: Match[] = [];
+  const updatedTies: Tie[] = [];
   for (const f of t.fixtures) {
-    if (f.stage !== "knockout" || !f.matchId) continue;
-    const match = matches[f.matchId];
-    if (!match || match.status !== "scheduled") continue;
-    const { a, b } = resolveSides(f, t.fixtures, matches);
-    if (a && b && (match.sides.A.entryId !== a || match.sides.B.entryId !== b)) {
-      const fresh = matchForFixture(t, f, a, b);
-      updated.push({ ...match, sides: fresh.sides });
+    if (f.stage !== "knockout" || (!f.matchId && !f.tieId)) continue;
+    const { a, b } = resolveSides(f, t.fixtures, data);
+    if (!a || !b) continue;
+    const current = fixtureOutcome(f, data);
+    if (current.entries.A === a && current.entries.B === b) continue;
+    if (f.matchId) {
+      const match = data.matches[f.matchId];
+      if (match?.status === "scheduled") updated.push({ ...match, sides: matchForFixture(t, f, a, b).sides });
+    } else {
+      const tie = data.ties[f.tieId!];
+      const started = tie?.slots.some((s) => s.matchId);
+      if (tie && !started) {
+        const fresh = tieForFixture(t, f, a, b);
+        updatedTies.push({ ...tie, title: fresh.title, teams: fresh.teams, slots: fresh.slots });
+      }
     }
   }
-  const merged = { ...matches };
-  for (const m of updated) merged[m.id] = m;
-  const { tournament, created } = createReadyMatches(t, merged);
-  for (const m of created) merged[m.id] = m;
-  const done = !!champion(tournament, merged);
-  const phase = done ? "complete" : tournament.phase === "complete" ? (t.structure === "league" ? "groups" : "knockout") : tournament.phase;
-  if (created.length === 0 && updated.length === 0 && phase === t.phase) return { tournament: t, created, updated };
-  return { tournament: { ...tournament, phase }, created, updated };
+  const merged: Data = { matches: { ...data.matches }, ties: { ...data.ties } };
+  for (const m of updated) merged.matches[m.id] = m;
+  for (const x of updatedTies) merged.ties[x.id] = x;
+  const ready = createReady(t, merged);
+  for (const m of ready.created) merged.matches[m.id] = m;
+  for (const x of ready.ties) merged.ties[x.id] = x;
+  const finished = tournamentFinished(ready.tournament, merged);
+  const playing = t.structure === "league" || (t.structure === "groups_knockout" && !t.fixtures.some((f) => f.stage === "knockout")) ? "groups" : "knockout";
+  const phase = finished ? "complete" : t.phase === "complete" ? playing : t.phase;
+  if (!ready.created.length && !ready.ties.length && !updated.length && !updatedTies.length && phase === t.phase) return none;
+  return { ...ready, tournament: { ...ready.tournament, phase }, updated, updatedTies };
 }
 
 export function sportFormats(sport: SportKey): MatchFormat[] {
-  // Badminton / table tennis team events become ties of several matches (coming next).
-  return SPORTS[sport].formats.filter((f) => sport === "volleyball" || f !== "team");
+  return SPORTS[sport].formats;
 }

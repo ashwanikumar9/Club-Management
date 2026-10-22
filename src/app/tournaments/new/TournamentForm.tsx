@@ -6,7 +6,7 @@ import { RulesFields } from "@/components/RulesFields";
 import { MutationError } from "@/lib/rally/mutations";
 import { FORMAT_LABELS, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
 import type { MatchFormat, RallyRules, SportKey } from "@/lib/rally/types";
-import { createTournament, sportFormats } from "@/lib/tournament/mutations";
+import { createTournament, sportFormats, usesTies } from "@/lib/tournament/mutations";
 import type { Structure } from "@/lib/tournament/types";
 import { saveTournament, useUser } from "@/lib/store";
 
@@ -32,6 +32,8 @@ export function TournamentForm() {
   const [loss, setLoss] = useState("0");
   const [venue, setVenue] = useState("");
   const [startDate, setStartDate] = useState("");
+  const [tieMatchCount, setTieMatchCount] = useState(5);
+  const [thirdPlace, setThirdPlace] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const config = SPORTS[sport];
 
@@ -57,7 +59,19 @@ export function TournamentForm() {
       return;
     }
     try {
-      const t = createTournament({ name, sport, format, venue, startDate, organiser: user!, rules, points, structure });
+      const t = createTournament({
+        name,
+        sport,
+        format,
+        venue,
+        startDate,
+        organiser: user!,
+        rules,
+        points,
+        structure,
+        thirdPlace: structure !== "league" && thirdPlace,
+        tieMatchCount,
+      });
       saveTournament(t);
       router.push(`/tournaments/${t.id}`);
     } catch (e) {
@@ -123,8 +137,22 @@ export function TournamentForm() {
             ))}
           </div>
         )}
-        {sport !== "volleyball" && (
-          <p className="text-xs text-muted">Team events (several singles and doubles matches per tie) are coming next.</p>
+        {usesTies({ sport, format }) && (
+          <div className="rounded-xl border border-border bg-surface p-3">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Matches per tie</span>
+              <select value={tieMatchCount} onChange={(e) => setTieMatchCount(Number(e.target.value))}>
+                {[1, 3, 5, 7, 9].map((n) => (
+                  <option key={n} value={n}>
+                    {n} {n === 1 ? "match" : `matches (first to ${Math.floor(n / 2) + 1} wins)`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="mt-1 text-xs text-muted">
+              Each fixture is a team tie of singles and doubles matches. Line-ups are picked on the tie page before each match.
+            </p>
+          </div>
         )}
       </section>
 
@@ -143,6 +171,12 @@ export function TournamentForm() {
             </button>
           ))}
         </div>
+        {structure !== "league" && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={thirdPlace} onChange={(e) => setThirdPlace(e.target.checked)} />
+            Add a third-place match between the semi-final losers
+          </label>
+        )}
         <p className="text-xs text-muted">You can still change the structure until fixtures are generated.</p>
       </section>
 

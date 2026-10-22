@@ -14,6 +14,7 @@ import {
   MutationError,
   removeScorer,
   reopenMatch,
+  setOutcome,
   setLatestPointDetail,
   startMatch,
   cancelTakeover,
@@ -26,6 +27,7 @@ import { SPORTS } from "./sports";
 import type { Match, SideKey, SportKey } from "./types";
 
 const ORG = "@org";
+const NR = { type: "no_result" } as const;
 
 function newMatch(sport: SportKey = "badminton", format: Match["format"] = "singles"): Match {
   return startMatch(
@@ -115,7 +117,7 @@ describe("undo until close", () => {
   });
 
   it("blocks undo and scoring after close; organiser edits instead", () => {
-    let m = closeMatch(score(newMatch(), "AAB"), ORG);
+    let m = closeMatch(score(newMatch(), "AAB"), ORG, NR);
     const id = state(m).points[2].event.id;
     expect(() => undoLast(m, id, ORG)).toThrow(MutationError);
     expect(() => editPoint(m, "@someone", id, { side: "A" })).toThrow(/Only the organiser/);
@@ -125,7 +127,7 @@ describe("undo until close", () => {
   });
 
   it("lets the organiser insert and delete points, and re-open", () => {
-    let m = closeMatch(score(newMatch(), "AB"), ORG);
+    let m = closeMatch(score(newMatch(), "AB"), ORG, NR);
     const [first, second] = state(m).points.map((p) => p.event.id);
     m = insertPoint(m, ORG, "B", second);
     expect(state(m).points.map((p) => p.event.side)).toEqual(["A", "B", "B"]);
@@ -225,7 +227,7 @@ describe("changing rules", () => {
     const m = newMatch();
     expect(() => changeRules(m, { ...rules, bestOf: 4 }, ORG)).toThrow(/odd/);
     expect(() => changeRules(m, { ...rules, cap: 10 }, ORG)).toThrow(/cap/);
-    expect(() => changeRules(closeMatch(m, ORG), rules, ORG)).toThrow(/closed/);
+    expect(() => changeRules(closeMatch(m, ORG, NR), rules, ORG)).toThrow(/closed/);
   });
 
   it("can extend a match with a higher best of", () => {
@@ -357,3 +359,48 @@ function score2(match: Match, by: string, sequence: string): Match {
   for (const ch of sequence) m = addPoint(m, ch as SideKey, by).match;
   return m;
 }
+
+describe("retirements, walkovers and no result", () => {
+  it("awards a retirement to the opponent and records it in commentary", () => {
+    let m = score(newMatch(), "A".repeat(21) + "BBB");
+    expect(() => closeMatch(m, ORG)).toThrow(/Choose how the match ended/);
+    m = closeMatch(m, ORG, { type: "retired", winner: "B" });
+    expect(state(m).winner).toBe("B");
+    expect(state(m).setsWon).toEqual({ A: 1, B: 0 }); // the score stays as played
+    expect(buildCommentary(m, state(m)).at(-1)?.text).toBe("Riya retired, Asha wins.");
+  });
+
+  it("allows a walkover before the match starts", () => {
+    const scheduled = createMatch({
+      sport: "badminton",
+      title: "",
+      venue: "",
+      livestreamUrl: "",
+      format: "singles",
+      rules: SPORTS.badminton.rules,
+      sides: { A: { name: "Riya", players: [] }, B: { name: "Asha", players: [] } },
+      organiser: ORG,
+    });
+    expect(() => closeMatch(scheduled, ORG, { type: "retired", winner: "A" })).toThrow(/walkover or no result/);
+    const m = closeMatch(scheduled, ORG, { type: "walkover", winner: "A" });
+    expect(state(m).winner).toBe("A");
+    expect(m.history.at(-1)?.summary).toBe("Match closed (Walkover, Riya wins (Asha did not play))");
+  });
+
+  it("records no result without a winner and requires a winner for the other outcomes", () => {
+    const m = closeMatch(score(newMatch(), "AB"), ORG, NR);
+    expect(state(m).winner).toBeNull();
+    expect(() => closeMatch(score(newMatch(), "AB"), ORG, { type: "retired" })).toThrow(/Choose who is awarded/);
+    expect(() => closeMatch(score(newMatch(), "A".repeat(42)), ORG, NR)).toThrow(/already has a winner/);
+  });
+
+  it("lets the organiser change the recorded outcome, and re-opening clears it", () => {
+    let m = closeMatch(score(newMatch(), "AB"), ORG, { type: "retired", winner: "A" });
+    expect(() => setOutcome(m, "@someone", NR)).toThrow(/Only the organiser/);
+    m = setOutcome(m, ORG, { type: "retired", winner: "B" });
+    expect(state(m).winner).toBe("B");
+    m = reopenMatch(m, ORG);
+    expect(m.outcome).toBeUndefined();
+    expect(state(m).winner).toBeNull();
+  });
+});

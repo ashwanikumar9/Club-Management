@@ -150,7 +150,8 @@ export function NewMatchForm() {
               <button
                 key={f}
                 type="button"
-                onClick={() => chooseFormat(f)}
+                // Badminton / table tennis team events are ties of several matches.
+                onClick={() => (f === "team" && sport !== "volleyball" ? router.push("/ties/new") : chooseFormat(f))}
                 className={`flex-1 rounded-lg border py-2 text-sm ${
                   format === f ? "border-foreground font-semibold" : "border-border bg-surface text-muted"
                 }`}

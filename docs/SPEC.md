@@ -398,7 +398,20 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
 6. **Advancement** — knockout winners move on automatically when a match is closed; if the organiser
    corrects a closed result, the next match is updated if it hasn't started yet
 
-### Team ties (badminton / table tennis team events) — after tournaments
+7. **Third-place match** (optional) — the organiser can add a play-off between the semi-final losers when
+   creating the tournament or at any time before it is set up; the podium shows 🏆 / 🥈 / 🥉
+8. **Team events** — for badminton / table tennis "team" entries, every fixture is a team tie (below);
+   the points table counts ties won, then matches won/lost (MD), then games
+
+### Retirements, walkovers and no result
+- A match that isn't played to a finish is closed by the scorer (or organiser) with how it ended:
+  - **Retired** — one side retired during play; the opponent is awarded the match; the score so far is kept
+  - **Walkover** — one side didn't play (can be recorded before the match starts); the other side is awarded it
+  - **No result** — abandoned; no points for either side
+- Awarded matches count as wins in points tables, ties and brackets
+- The organiser can change the recorded outcome after close; re-opening the match clears it
+
+### Team ties (badminton / table tennis team events)
 - A tie between two teams consists of N matches (e.g. 5); the first team to win a majority wins and the
   remaining matches are not played (organiser may choose to play them anyway)
 - Each team has a player list of any size

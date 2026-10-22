@@ -3,6 +3,8 @@
 import { useSyncExternalStore } from "react";
 import { MutationError } from "./rally/mutations";
 import type { Match } from "./rally/types";
+import type { Tie } from "./tie/types";
+import type { Data } from "./tournament/engine";
 import { syncTournament } from "./tournament/mutations";
 import type { Tournament } from "./tournament/types";
 
@@ -82,13 +84,15 @@ function collection<T extends { id: string; version: number }>(key: string) {
 }
 
 const matches = collection<Match>("cm.matches.v2");
-const tournaments = collection<Tournament>("cm.tournaments.v1");
+const tournaments = collection<Tournament>("cm.tournaments.v2");
+const ties = collection<Tie>("cm.ties.v1");
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
   const onStorage = (e: StorageEvent) => {
     if (e.key === matches.key) matches.refresh();
     if (e.key === tournaments.key) tournaments.refresh();
+    if (e.key === ties.key) ties.refresh();
     listener();
   };
   window.addEventListener("storage", onStorage);
@@ -114,11 +118,13 @@ export const deleteMatch = matches.remove;
 
 /**
  * Applies a mutation to the latest stored copy of a match. Returns an error message instead of throwing.
- * Tournament matches also bring their tournament up to date (e.g. the winner moves to the next round).
+ * Tournament matches (and matches inside a tournament tie) also bring their tournament up to date,
+ * e.g. the winner moves to the next round.
  */
 export function updateMatch(id: string, mutate: (match: Match) => Match): string | null {
   const error = matches.update(id, mutate);
-  const tournamentId = matches.read()[id]?.tournament?.id;
+  const match = matches.read()[id];
+  const tournamentId = match?.tournament?.id ?? (match?.tie ? ties.read()[match.tie.id]?.tournament?.id : undefined);
   if (!error && tournamentId) syncTournamentById(tournamentId);
   return error;
 }
@@ -136,20 +142,37 @@ export function useTournament(id: string): Tournament | null | undefined {
 export const saveTournament = (t: Tournament) => tournaments.saveMany([t]);
 export const updateTournament = tournaments.update;
 
-/**
- * Runs a tournament action that may also create or change matches. The action receives the latest
- * stored tournament and matches; returns an error message instead of throwing.
- */
-export function runTournamentAction(
-  id: string,
-  action: (t: Tournament, all: Collection<Match>) => { tournament: Tournament; matches: Match[] },
-): string | null {
-  const t = tournaments.read()[id];
-  if (!t) return "Tournament not found.";
+export function useTies(): Collection<Tie> | null {
+  return useSyncExternalStore(subscribe, ties.get, () => null);
+}
+
+export function useTie(id: string): Tie | null | undefined {
+  const all = useTies();
+  if (all === null) return undefined;
+  return all[id] ?? null;
+}
+
+const readData = (): Data => ({ matches: matches.read(), ties: ties.read() });
+
+export interface ActionResult<T> {
+  item: T;
+  matches?: Match[];
+  ties?: Tie[];
+}
+
+function save<T extends { version: number }>(
+  col: { saveMany: (items: T[]) => void },
+  current: T,
+  result: ActionResult<T>,
+) {
+  matches.saveMany(result.matches ?? []);
+  ties.saveMany((result.ties ?? []) as Tie[]);
+  if (result.item !== current) col.saveMany([{ ...result.item, version: current.version + 1 }]);
+}
+
+function attempt(fn: () => void): string | null {
   try {
-    const result = action(t, matches.read());
-    matches.saveMany(result.matches);
-    if (result.tournament !== t) tournaments.saveMany([{ ...result.tournament, version: t.version + 1 }]);
+    fn();
     return null;
   } catch (error) {
     if (error instanceof MutationError) return error.message;
@@ -157,11 +180,32 @@ export function runTournamentAction(
   }
 }
 
-/** Creates ready knockout matches, fixes not-yet-started ones after corrections, and updates the phase. */
+/**
+ * Runs a tournament action that may also create or change matches and ties. The action receives the
+ * latest stored data; returns an error message instead of throwing.
+ */
+export function runTournamentAction(id: string, action: (t: Tournament, data: Data) => ActionResult<Tournament>): string | null {
+  const t = tournaments.read()[id];
+  if (!t) return "Tournament not found.";
+  return attempt(() => save(tournaments, t, action(t, readData())));
+}
+
+/** Runs a tie action that may also create or change matches. */
+export function runTieAction(id: string, action: (t: Tie, data: Data) => ActionResult<Tie>): string | null {
+  const tie = ties.read()[id];
+  if (!tie) return "Tie not found.";
+  const error = attempt(() => save(ties, tie, action(tie, readData())));
+  if (!error && tie.tournament) syncTournamentById(tie.tournament.id);
+  return error;
+}
+
+export const saveTie = (tie: Tie) => ties.saveMany([tie]);
+
+/** Creates ready knockout matches / ties, fixes not-yet-started ones after corrections, and updates the phase. */
 export function syncTournamentById(id: string) {
-  runTournamentAction(id, (t, all) => {
-    const { tournament, created, updated } = syncTournament(t, all);
-    return { tournament, matches: [...created, ...updated] };
+  runTournamentAction(id, (t, data) => {
+    const r = syncTournament(t, data);
+    return { item: r.tournament, matches: [...r.created, ...r.updated], ties: [...r.ties, ...r.updatedTies] };
   });
 }
 

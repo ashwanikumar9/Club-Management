@@ -24,6 +24,11 @@ export function PublicMatch({ params }: { params: Promise<{ id: string }> }) {
                 ← Tournament · {m.tournament.label}
               </Link>
             )}
+            {m.tie && (
+              <Link href={`/ties/${m.tie.id}`} className="text-sm font-medium text-side-a">
+                ← Team tie · {m.tie.teams.A} vs {m.tie.teams.B} · Match {m.tie.index + 1}
+              </Link>
+            )}
             <p className="text-sm text-muted">{matchSubtitle(m)}</p>
             <h1 className="text-xl font-bold">
               {m.sides.A.name} <span className="font-normal text-muted">vs</span> {m.sides.B.name}

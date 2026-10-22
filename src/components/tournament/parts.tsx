@@ -4,15 +4,14 @@ import Link from "next/link";
 import { sideBg } from "@/components/match-ui";
 import { matchState } from "@/lib/rally/engine";
 import { SPORTS } from "@/lib/rally/sports";
-import type { Match } from "@/lib/rally/types";
 import {
+  fixtureOutcome,
   fixtureWinner,
   isByeFixture,
-  matchResult,
   resolveSides,
   roundName,
   standings,
-  type Matches,
+  type Data,
 } from "@/lib/tournament/engine";
 import type { Fixture, Group, Tournament } from "@/lib/tournament/types";
 
@@ -22,16 +21,17 @@ export const entryName = (t: Tournament, id?: string) => (id ? (t.entries.find((
 export function PointsTable({
   t,
   group,
-  matches,
+  data,
   qualify,
 }: {
   t: Tournament;
   group: Group;
-  matches: Matches;
+  data: Data;
   qualify: number;
 }) {
-  const rows = standings(group, t.fixtures, matches, t.points);
-  const setLabel = SPORTS[t.sport].setLabel;
+  const rows = standings(group, t.fixtures, data, t.points);
+  const ties = !!t.tieMatchCount;
+  const setLabel = ties ? "Match" : SPORTS[t.sport].setLabel;
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-surface">
       <div className="flex items-center justify-between bg-surface-2 px-4 py-2">
@@ -46,8 +46,8 @@ export function PointsTable({
             <th className="w-8 font-medium" title="Played">P</th>
             <th className="w-8 font-medium" title="Won">W</th>
             <th className="w-8 font-medium" title="Lost">L</th>
-            <th className="w-12 font-medium" title={`${setLabel}s won – lost`}>
-              {setLabel.slice(0, 1)}D
+            <th className="w-12 font-medium" title={ties ? "Matches won – lost" : `${setLabel}s won – lost`}>
+              {ties ? "MD" : `${setLabel.slice(0, 1)}D`}
             </th>
             <th className="w-12 pr-4 text-right font-medium" title="Points">
               Pts
@@ -76,32 +76,29 @@ function signed(n: number) {
   return n > 0 ? `+${n}` : String(n);
 }
 
-function statusText(match: Match | undefined) {
-  if (!match) return "Waiting";
-  if (match.status === "scheduled") return "Upcoming";
-  if (match.status === "live") return "Live";
-  return "Final";
-}
+const STATUS_TEXT = { none: "Waiting", scheduled: "Upcoming", live: "Live", closed: "Final" } as const;
 
-/** One fixture: both sides, status and score, linking to the match when it exists. */
-export function FixtureCard({ t, fixture, matches, compact = false }: { t: Tournament; fixture: Fixture; matches: Matches; compact?: boolean }) {
-  const match = fixture.matchId ? matches[fixture.matchId] : undefined;
-  const sides = resolveSides(fixture, t.fixtures, matches);
-  const winner = fixtureWinner(fixture, t.fixtures, matches);
+/** One fixture: both sides, status and score, linking to the match or tie when it exists. */
+export function FixtureCard({ t, fixture, data, compact = false }: { t: Tournament; fixture: Fixture; data: Data; compact?: boolean }) {
+  const match = fixture.matchId ? data.matches[fixture.matchId] : undefined;
+  const tie = fixture.tieId ? data.ties[fixture.tieId] : undefined;
+  const sides = resolveSides(fixture, t.fixtures, data);
+  const winner = fixtureWinner(fixture, t.fixtures, data);
+  const outcome = fixtureOutcome(fixture, data);
   const bye = isByeFixture(fixture);
   const state = match ? matchState(match) : null;
-  const result = match ? matchResult(match) : null;
-  const live = match?.status === "live";
+  const live = outcome.status === "live";
+  const href = match ? `/matches/${match.id}` : tie ? `/ties/${tie.id}` : undefined;
 
   const placeholder = (side: "a" | "b") => {
     const source = fixture[side];
     if (source.type === "bye") return "Bye";
-    if (source.type === "winner") {
+    if (source.type === "winner" || source.type === "loser") {
       const from = t.fixtures.find((f) => f.id === source.fixtureId);
       if (!from) return "TBD";
       const total = Math.max(...t.fixtures.filter((f) => f.stage === "knockout").map((f) => f.round));
-      const inRound = t.fixtures.filter((f) => f.stage === "knockout" && f.round === from.round).length;
-      return `Winner ${roundName(from.round, total)}${inRound > 1 ? ` ${from.index + 1}` : ""}`;
+      const inRound = t.fixtures.filter((f) => f.stage === "knockout" && f.round === from.round && !f.third).length;
+      return `${source.type === "winner" ? "Winner" : "Loser"} ${roundName(from.round, total)}${inRound > 1 ? ` ${from.index + 1}` : ""}`;
     }
     return "TBD";
   };
@@ -113,7 +110,9 @@ export function FixtureCard({ t, fixture, matches, compact = false }: { t: Tourn
       <div className={`flex items-center gap-2 ${isWinner ? "font-bold" : ""} ${id ? "" : "text-muted"}`}>
         <span className={`h-4 w-1 shrink-0 rounded-full ${id ? sideBg[matchSide] : "bg-border"}`} />
         <span className="min-w-0 flex-1 truncate">{entryName(t, id) ?? placeholder(side)}</span>
-        {result && match?.status !== "scheduled" && <span className="tabular w-5 text-right">{result.sets[matchSide]}</span>}
+        {outcome.status !== "none" && outcome.status !== "scheduled" && (
+          <span className="tabular w-5 text-right">{outcome.score[matchSide]}</span>
+        )}
         {live && state && !state.winner && (
           <span className="tabular w-7 text-right text-xs font-semibold text-live">{state.sets[state.currentSet][matchSide]}</span>
         )}
@@ -121,20 +120,24 @@ export function FixtureCard({ t, fixture, matches, compact = false }: { t: Tourn
     );
   };
 
+  const label = fixture.third ? "Third place" : (match?.tournament?.label ?? tie?.tournament?.label ?? (bye ? "Bye" : ""));
   const body = (
     <div className={`space-y-1 rounded-xl border border-border bg-surface ${compact ? "p-2 text-sm" : "p-3"}`}>
-      {!compact && (
+      {(!compact || fixture.third) && (
         <div className="mb-1 flex items-center justify-between text-xs text-muted">
-          <span>{match?.tournament?.label ?? (bye ? "Bye" : "")}</span>
-          <span className={live ? "font-semibold text-live" : ""}>{bye ? "Advances" : statusText(match)}</span>
+          <span>
+            {label}
+            {tie && !compact ? ` · team tie, best of ${tie.matchCount}` : ""}
+          </span>
+          {!compact && <span className={live ? "font-semibold text-live" : ""}>{bye ? "Advances" : STATUS_TEXT[outcome.status]}</span>}
         </div>
       )}
       {row("a", "A")}
       {row("b", "B")}
     </div>
   );
-  return match ? (
-    <Link href={`/matches/${match.id}`} className="block">
+  return href ? (
+    <Link href={href} className="block">
       {body}
     </Link>
   ) : (
@@ -143,20 +146,23 @@ export function FixtureCard({ t, fixture, matches, compact = false }: { t: Tourn
 }
 
 /** Knockout bracket: one column per round, scrolls sideways on phones. */
-export function Bracket({ t, matches }: { t: Tournament; matches: Matches }) {
+export function Bracket({ t, data }: { t: Tournament; data: Data }) {
   const knockout = t.fixtures.filter((f) => f.stage === "knockout");
   if (knockout.length === 0) return null;
   const total = Math.max(...knockout.map((f) => f.round));
-  const rounds = Array.from({ length: total }, (_, i) => knockout.filter((f) => f.round === i + 1).sort((a, b) => a.index - b.index));
+  // The third-place match sits under the final.
+  const rounds = Array.from({ length: total }, (_, i) =>
+    knockout.filter((f) => f.round === i + 1).sort((a, b) => Number(!!a.third) - Number(!!b.third) || a.index - b.index),
+  );
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-2">
       <div className="flex min-w-max gap-3">
         {rounds.map((fixtures, i) => (
-          <div key={i} className="flex w-52 flex-col">
+          <div key={i} className="flex w-[10.5rem] flex-col sm:w-52">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{roundName(i + 1, total)}</h3>
             <div className="flex flex-1 flex-col justify-around gap-3">
               {fixtures.map((f) => (
-                <FixtureCard key={f.id} t={t} fixture={f} matches={matches} compact />
+                <FixtureCard key={f.id} t={t} fixture={f} data={data} compact />
               ))}
             </div>
           </div>

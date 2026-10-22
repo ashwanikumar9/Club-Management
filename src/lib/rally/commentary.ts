@@ -1,5 +1,6 @@
 import { other, type MatchState } from "./engine";
 import { describeRules } from "./rules";
+import { describeOutcome } from "./outcome";
 import { SPORTS } from "./sports";
 import type { Match, ScoreEvent, SideKey } from "./types";
 
@@ -147,7 +148,12 @@ export function buildCommentary(match: Match, state: MatchState): CommentaryLine
     lines.push({
       id: "closed",
       kind: "system",
-      text: state.winner ? "Match closed. Result confirmed." : "Match closed without a result.",
+      text: match.outcome
+        ? `${describeOutcome(match, match.outcome)}.`
+        : state.winner
+          ? "Match closed. Result confirmed."
+          : "Match closed without a result.",
+      highlight: !!match.outcome,
       at: match.closedAt,
       set: state.currentSet + 1,
     });

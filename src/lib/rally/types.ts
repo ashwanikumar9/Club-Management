@@ -123,6 +123,15 @@ export interface TakeoverRequest {
   decidedAt?: string;
 }
 
+/**
+ * How a match without a natural winner ended. `winner` is the side awarded the match
+ * (for a retirement, the opponent of the player who retired; for a walkover, the side that turned up).
+ */
+export interface MatchOutcome {
+  type: "retired" | "walkover" | "no_result";
+  winner?: SideKey;
+}
+
 export interface DetailSettings {
   askHow: boolean;
   askWho: boolean;
@@ -151,6 +160,10 @@ export interface Match {
   /** Latest take-over request (kept after it is decided so the requester sees the outcome). */
   takeoverRequest?: TakeoverRequest;
   tournament?: TournamentLink;
+  /** Set for a match that is part of a team tie. */
+  tie?: { id: string; index: number; teams: Record<SideKey, string> };
+  /** Set when the match is closed without being played to a finish (retirement, walkover, no result). */
+  outcome?: MatchOutcome;
   status: MatchStatus;
   createdAt: string;
   startedAt?: string;

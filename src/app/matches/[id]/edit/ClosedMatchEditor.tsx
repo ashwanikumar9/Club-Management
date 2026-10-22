@@ -5,7 +5,9 @@ import { use, useState } from "react";
 import { MatchGate, Scoreboard, matchSubtitle, sideBg, useMatchView } from "@/components/match-ui";
 import { describePoint, playerName } from "@/lib/rally/commentary";
 import { other, type MatchState, type PointResult } from "@/lib/rally/engine";
-import { deletePoint, editPoint, insertPoint, isOrganiser, reopenMatch } from "@/lib/rally/mutations";
+import { OutcomePicker } from "@/components/OutcomePicker";
+import { computeState, rulesResolver } from "@/lib/rally/engine";
+import { deletePoint, describeOutcome, editPoint, insertPoint, isOrganiser, reopenMatch, setOutcome } from "@/lib/rally/mutations";
 import { SPORTS } from "@/lib/rally/sports";
 import type { Match, SideKey } from "@/lib/rally/types";
 import { updateMatch, useUser } from "@/lib/store";
@@ -62,6 +64,10 @@ function Editor({ match, state, by }: { match: Match; state: MatchState; by: str
       <p className="text-sm text-muted">
         Every change recalculates the score, winner and commentary, and is recorded in the change log below.
       </p>
+
+      {!computeState(match.events, rulesResolver(match)).winner && (
+        <OutcomeEditor match={match} by={by} run={run} played={state.points.length > 0} />
+      )}
 
       {error && (
         <button type="button" onClick={() => setError(null)} className="w-full rounded-lg bg-danger/10 px-3 py-2 text-left text-sm text-danger">
@@ -215,5 +221,45 @@ function PointRow({
         )}
       </div>
     </div>
+  );
+}
+
+/** For matches closed without a finish: change the retirement / walkover / no-result decision. */
+function OutcomeEditor({
+  match,
+  by,
+  run,
+  played,
+}: {
+  match: Match;
+  by: string;
+  run: (mutation: (m: Match) => Match) => void;
+  played: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-4">
+      <h2 className="font-semibold">Result</h2>
+      <p className="mt-1 text-sm">{match.outcome ? describeOutcome(match, match.outcome) : "Not recorded"}</p>
+      {open ? (
+        <div className="mt-3">
+          <OutcomePicker
+            match={match}
+            kinds={played ? ["retired"] : ["retired", "walkover"]}
+            initial={match.outcome}
+            confirmLabel="Save result"
+            onCancel={() => setOpen(false)}
+            onConfirm={(outcome) => {
+              run((m) => setOutcome(m, by, outcome));
+              setOpen(false);
+            }}
+          />
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="mt-3 rounded-lg border border-border px-3 py-1.5 text-sm font-medium">
+          Change result
+        </button>
+      )}
+    </section>
   );
 }

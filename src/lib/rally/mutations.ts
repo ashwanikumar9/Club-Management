@@ -1,5 +1,7 @@
-import { activeEvents, matchState } from "./engine";
+import { activeEvents, computeState, matchState, rulesResolver } from "./engine";
 import { describePoint } from "./commentary";
+import { describeOutcome } from "./outcome";
+export { describeOutcome };
 import { describeRules, validateRules } from "./rules";
 import { SPORTS } from "./sports";
 import type {
@@ -7,6 +9,7 @@ import type {
   AuditKind,
   DetailSettings,
   Match,
+  MatchOutcome,
   MatchFormat,
   Player,
   RallyRules,
@@ -304,20 +307,69 @@ export function undoLast(match: Match, expectedEventId: string, by: string): Mat
   };
 }
 
-export function closeMatch(match: Match, by: string): Match {
-  requireLive(match);
-  if (!isOrganiser(match, by)) requireActiveScorer(match, by);
-  const state = matchState(match);
-  const result = state.winner
-    ? `${match.sides[state.winner].name} won ${state.setsWon[state.winner]}–${state.setsWon[state.winner === "A" ? "B" : "A"]}`
-    : "no result";
-  const closed = { ...voidTakeover(match), status: "closed" as const, closedAt: now(), closedBy: by, activeScorer: undefined };
+function checkOutcome(outcome: MatchOutcome) {
+  if (outcome.type !== "no_result" && outcome.winner !== "A" && outcome.winner !== "B") {
+    throw new MutationError("Choose who is awarded the match.");
+  }
+}
+
+/**
+ * Closes the match. A finished match closes with its result. An unfinished one needs an outcome chosen by
+ * the scorer or organiser: a retirement, a walkover (also possible before the match starts), or no result.
+ */
+export function closeMatch(match: Match, by: string, outcome?: MatchOutcome): Match {
+  if (match.status === "scheduled") {
+    requireAccess(match, by);
+    if (outcome?.type !== "walkover" && outcome?.type !== "no_result") {
+      throw new MutationError("A match that hasn't started can only be closed as a walkover or no result.");
+    }
+  } else {
+    requireLive(match);
+    if (!isOrganiser(match, by)) requireActiveScorer(match, by);
+  }
+  const natural = computeState(match.events, rulesResolver(match)).winner;
+  if (natural && outcome) throw new MutationError("The match already has a winner.");
+  if (!natural) {
+    if (!outcome) throw new MutationError("Choose how the match ended: retirement, walkover or no result.");
+    checkOutcome(outcome);
+  }
+  const closed = {
+    ...voidTakeover(match),
+    status: "closed" as const,
+    closedAt: now(),
+    closedBy: by,
+    activeScorer: undefined,
+    outcome: natural ? undefined : { type: outcome!.type, winner: outcome!.type === "no_result" ? undefined : outcome!.winner },
+  };
+  const state = matchState(closed);
+  const result = natural
+    ? `${match.sides[natural].name} won ${state.setsWon[natural]}–${state.setsWon[natural === "A" ? "B" : "A"]}`
+    : describeOutcome(match, closed.outcome!);
   return audit(closed, "close", by, `Match closed (${result})`);
+}
+
+/** Organiser changes how an unfinished closed match is recorded (e.g. retirement → walkover, or the awarded side). */
+export function setOutcome(match: Match, by: string, outcome: MatchOutcome): Match {
+  requireOrganiserOnClosed(match, by);
+  if (computeState(match.events, rulesResolver(match)).winner) {
+    throw new MutationError("This match was played to a finish; edit the points instead.");
+  }
+  checkOutcome(outcome);
+  const next = { ...match, outcome: { type: outcome.type, winner: outcome.type === "no_result" ? undefined : outcome.winner } };
+  return audit(next, "edit", by, `Result changed to: ${describeOutcome(match, next.outcome)}`);
 }
 
 export function reopenMatch(match: Match, by: string): Match {
   requireOrganiserOnClosed(match, by);
-  const reopened = { ...match, status: "live" as const, closedAt: undefined, closedBy: undefined, activeScorer: by };
+  const reopened = {
+    ...match,
+    status: "live" as const,
+    closedAt: undefined,
+    closedBy: undefined,
+    activeScorer: by,
+    outcome: undefined,
+    startedAt: match.startedAt ?? now(),
+  };
   return audit(reopened, "reopen", by, "Match re-opened");
 }
 

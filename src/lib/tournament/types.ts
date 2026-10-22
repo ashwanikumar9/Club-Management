@@ -24,8 +24,12 @@ export interface Group {
   entryIds: string[];
 }
 
-/** Where a knockout side comes from: a known entry, the winner of an earlier fixture, or a bye. */
-export type Source = { type: "entry"; entryId: string } | { type: "winner"; fixtureId: string } | { type: "bye" };
+/** Where a knockout side comes from: a known entry, the winner or loser of an earlier fixture, or a bye. */
+export type Source =
+  | { type: "entry"; entryId: string }
+  | { type: "winner"; fixtureId: string }
+  | { type: "loser"; fixtureId: string }
+  | { type: "bye" };
 
 export interface Fixture {
   id: string;
@@ -39,6 +43,10 @@ export interface Fixture {
   b: Source;
   /** The live-scored match, created once both sides are known. */
   matchId?: string;
+  /** For team-tie tournaments: the tie played for this fixture. */
+  tieId?: string;
+  /** The third-place play-off between the semi-final losers. */
+  third?: boolean;
 }
 
 export interface PointsConfig {
@@ -61,6 +69,13 @@ export interface Tournament {
   structure: Structure;
   /** Teams per group that go through to the knockout (groups → knockout only). */
   qualifiersPerGroup: number;
+  /** Knockout includes a third-place match between the semi-final losers. */
+  thirdPlace: boolean;
+  /**
+   * Badminton / table tennis team events: each fixture is a tie of this many matches (odd). Line-ups are
+   * set on the tie page before each match.
+   */
+  tieMatchCount?: number;
   entries: Entry[];
   groups: Group[];
   fixtures: Fixture[];

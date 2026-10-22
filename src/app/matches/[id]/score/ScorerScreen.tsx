@@ -6,6 +6,7 @@ import { CommentaryFeed, MatchGate, Scoreboard, matchSubtitle, sideBg, useMatchV
 import { Sheet } from "@/components/Sheet";
 import { describePoint, playerName } from "@/lib/rally/commentary";
 import { other, type MatchState } from "@/lib/rally/engine";
+import { OutcomePicker } from "@/components/OutcomePicker";
 import { RulesFields } from "@/components/RulesFields";
 import { ScorersPanel } from "@/components/ScorersPanel";
 import { TakeoverCard, TakeoverPrompt, useTakeoverSettler } from "@/components/Takeover";
@@ -130,6 +131,23 @@ function Scorer({
           Start match
         </button>
         <p className="-mt-2 text-center text-xs text-muted">You will be the scorer. Anyone below can take over later.</p>
+        <button type="button" onClick={() => setConfirmClose(true)} className="w-full text-sm text-muted underline">
+          Record a walkover or no result instead
+        </button>
+        {confirmClose && (
+          <Sheet title="Match not played" onClose={() => setConfirmClose(false)}>
+            <OutcomePicker
+              match={match}
+              kinds={["walkover"]}
+              confirmLabel="Record result"
+              onCancel={() => setConfirmClose(false)}
+              onConfirm={(outcome) => {
+                run((m) => closeMatch(m, by, outcome));
+                setConfirmClose(false);
+              }}
+            />
+          </Sheet>
+        )}
         <SettingsBar match={match} by={by} />
         <ScorersPanel match={match} user={user} />
       </div>
@@ -310,28 +328,47 @@ function Scorer({
       )}
 
       {confirmClose && (
-        <Sheet title="Close match?" onClose={() => setConfirmClose(false)}>
-          <p className="text-sm">
-            {state.winner
-              ? `Final result: ${match.sides[state.winner].name} wins ${state.setsWon[state.winner]}–${state.setsWon[other(state.winner)]}.`
-              : `The match is not decided yet (${sport.setLabel.toLowerCase()}s ${state.setsWon.A}–${state.setsWon.B}). Close it anyway, e.g. for a retirement or walkover?`}
-          </p>
-          <p className="mt-2 text-sm text-muted">After closing, undo is turned off and only the organiser can edit the score.</p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setConfirmClose(false)} className="rounded-xl border border-border py-3 font-medium">
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                run((m) => closeMatch(m, by));
-                setConfirmClose(false);
-              }}
-              className="rounded-xl bg-accent py-3 font-bold text-white"
-            >
-              Close match
-            </button>
-          </div>
+        <Sheet title={state.winner ? "Close match?" : "How did the match end?"} onClose={() => setConfirmClose(false)}>
+          {state.winner ? (
+            <>
+              <p className="text-sm">
+                Final result: {match.sides[state.winner].name} wins {state.setsWon[state.winner]}–{state.setsWon[other(state.winner)]}.
+              </p>
+              <p className="mt-2 text-sm text-muted">After closing, undo is turned off and only the organiser can edit the score.</p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setConfirmClose(false)} className="rounded-xl border border-border py-3 font-medium">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    run((m) => closeMatch(m, by));
+                    setConfirmClose(false);
+                  }}
+                  className="rounded-xl bg-accent py-3 font-bold text-white"
+                >
+                  Close match
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mb-3 text-sm text-muted">
+                The match isn&rsquo;t finished ({sport.setLabel.toLowerCase()}s {state.setsWon.A}–{state.setsWon.B}). The score so far is kept.
+                The organiser can change this later.
+              </p>
+              <OutcomePicker
+                match={match}
+                kinds={state.points.length > 0 ? ["retired"] : ["retired", "walkover"]}
+                confirmLabel="Close match"
+                onCancel={() => setConfirmClose(false)}
+                onConfirm={(outcome) => {
+                  run((m) => closeMatch(m, by, outcome));
+                  setConfirmClose(false);
+                }}
+              />
+            </>
+          )}
         </Sheet>
       )}
     </div>
@@ -409,12 +446,19 @@ function RulesPanel({ match, state, by }: { match: Match; state: MatchState; by:
 
 function Header({ match }: { match: Match }) {
   return (
+    <>
+      {match.tie && (
+        <Link href={`/ties/${match.tie.id}`} className="-mb-2 block text-sm font-medium text-side-a">
+          ← Team tie · {match.tie.teams.A} vs {match.tie.teams.B}
+        </Link>
+      )}
     <div className="flex items-center justify-between gap-3">
       <p className="min-w-0 truncate text-sm text-muted">{matchSubtitle(match)}</p>
       <Link href={`/matches/${match.id}`} className="shrink-0 text-sm font-medium text-side-a">
         Public view →
       </Link>
     </div>
+    </>
   );
 }
 

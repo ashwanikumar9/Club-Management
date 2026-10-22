@@ -6,7 +6,7 @@ import { IdentityForm } from "@/components/IdentityForm";
 import { Bracket, FixtureCard, PointsTable, entryName } from "@/components/tournament/parts";
 import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
 import { describeRules } from "@/lib/rally/rules";
-import { champion, groupStageComplete, matchResult, type Matches } from "@/lib/tournament/engine";
+import { fixtureOutcome, groupStageComplete, podium, type Data } from "@/lib/tournament/engine";
 import {
   addEntry,
   addTournamentScorer,
@@ -20,10 +20,11 @@ import {
   setQualifiers,
   setSeed,
   setStructure,
+  setThirdPlace,
   startKnockout,
 } from "@/lib/tournament/mutations";
 import type { Tournament } from "@/lib/tournament/types";
-import { runTournamentAction, updateTournament, useMatches, useTournament, useUser } from "@/lib/store";
+import { runTournamentAction, updateTournament, useMatches, useTies, useTournament, useUser } from "@/lib/store";
 import { STRUCTURES } from "../new/TournamentForm";
 
 type Tab = "entries" | "groups" | "fixtures" | "bracket";
@@ -32,7 +33,8 @@ export function TournamentView({ params }: { params: Promise<{ id: string }> }) 
   const { id } = use(params);
   const t = useTournament(id);
   const matches = useMatches();
-  if (t === undefined || matches === null) return <p className="py-10 text-center text-muted">Loading…</p>;
+  const ties = useTies();
+  if (t === undefined || matches === null || ties === null) return <p className="py-10 text-center text-muted">Loading…</p>;
   if (t === null)
     return (
       <div className="py-10 text-center">
@@ -42,10 +44,10 @@ export function TournamentView({ params }: { params: Promise<{ id: string }> }) 
         </Link>
       </div>
     );
-  return <View t={t} matches={matches} />;
+  return <View t={t} data={{ matches, ties }} />;
 }
 
-function View({ t, matches }: { t: Tournament; matches: Matches }) {
+function View({ t, data }: { t: Tournament; data: Data }) {
   const user = useUser();
   const organiser = user === t.organiser;
   const setup = t.phase === "setup";
@@ -58,10 +60,14 @@ function View({ t, matches }: { t: Tournament; matches: Matches }) {
   const [tab, setTab] = useState<Tab>(setup ? "entries" : t.structure === "knockout" ? "bracket" : "groups");
   const active = tabs.some((x) => x.key === tab) ? tab : tabs[0].key;
   const [error, setError] = useState<string | null>(null);
-  const run = (action: Parameters<typeof runTournamentAction>[1]) => setError(runTournamentAction(t.id, action));
+  const run = (action: Parameters<typeof runTournamentAction>[1]) => {
+    const err = runTournamentAction(t.id, action);
+    setError(err);
+    return err;
+  };
   const edit = (mutate: (x: Tournament) => Tournament) => setError(updateTournament(t.id, mutate));
 
-  const winner = champion(t, matches);
+  const top = podium(t, data);
   const sport = SPORTS[t.sport];
 
   return (
@@ -78,10 +84,16 @@ function View({ t, matches }: { t: Tournament; matches: Matches }) {
         </p>
       </div>
 
-      {winner && (
+      {top.first && (
         <div className="rounded-2xl border-2 border-accent bg-accent/10 p-4 text-center">
           <p className="text-xs font-semibold uppercase tracking-wide text-accent">Champion</p>
-          <p className="text-2xl font-black">🏆 {entryName(t, winner)}</p>
+          <p className="text-2xl font-black">🏆 {entryName(t, top.first)}</p>
+          {(top.second || top.third) && (
+            <p className="mt-1 text-sm">
+              {top.second && <>🥈 {entryName(t, top.second)}</>}
+              {top.third && <span className="ml-3">🥉 {entryName(t, top.third)}</span>}
+            </p>
+          )}
         </div>
       )}
 
@@ -91,7 +103,15 @@ function View({ t, matches }: { t: Tournament; matches: Matches }) {
         </button>
       )}
 
-      <PhaseBar t={t} matches={matches} organiser={organiser} run={run} user={user ?? ""} />
+      <PhaseBar
+        t={t}
+        data={data}
+        organiser={organiser}
+        run={run}
+        edit={edit}
+        user={user ?? ""}
+        onAdvanced={(stage) => setTab(stage === "knockout" ? "bracket" : "groups")}
+      />
 
       <div className="flex gap-1 overflow-x-auto rounded-xl bg-surface-2 p-1 text-sm">
         {tabs.map((x) => (
@@ -107,12 +127,12 @@ function View({ t, matches }: { t: Tournament; matches: Matches }) {
       </div>
 
       {active === "entries" && <EntriesTab t={t} organiser={organiser} edit={edit} user={user ?? ""} />}
-      {active === "groups" && <GroupsTab t={t} matches={matches} organiser={organiser} edit={edit} user={user ?? ""} />}
-      {active === "fixtures" && <FixturesTab t={t} matches={matches} />}
+      {active === "groups" && <GroupsTab t={t} data={data} organiser={organiser} edit={edit} user={user ?? ""} />}
+      {active === "fixtures" && <FixturesTab t={t} data={data} />}
       {active === "bracket" && (
         <>
           {t.fixtures.some((f) => f.stage === "knockout") ? (
-            <Bracket t={t} matches={matches} />
+            <Bracket t={t} data={data} />
           ) : (
             <p className="py-6 text-center text-sm text-muted">The bracket appears when the group stage is finished.</p>
           )}
@@ -125,19 +145,30 @@ function View({ t, matches }: { t: Tournament; matches: Matches }) {
 /** What happens next: generate fixtures, start the knockout, or a progress summary. */
 function PhaseBar({
   t,
-  matches,
+  data,
   organiser,
   run,
+  edit,
   user,
+  onAdvanced,
 }: {
   t: Tournament;
-  matches: Matches;
+  data: Data;
   organiser: boolean;
-  run: (action: Parameters<typeof runTournamentAction>[1]) => void;
+  run: (action: Parameters<typeof runTournamentAction>[1]) => string | null;
+  edit: (mutate: (x: Tournament) => Tournament) => void;
   user: string;
+  /** Called after fixtures are generated or the knockout starts, to show the new stage. */
+  onAdvanced: (stage: "groups" | "knockout") => void;
 }) {
   const groupFixtures = t.fixtures.filter((f) => f.stage === "group");
-  const done = groupFixtures.filter((f) => f.matchId && matches[f.matchId] && matchResult(matches[f.matchId]).winner).length;
+  const done = groupFixtures.filter((f) => fixtureOutcome(f, data).winner).length;
+  const thirdToggle = organiser && t.structure !== "league" && t.phase !== "complete" && (
+    <label className="mt-3 flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={t.thirdPlace} onChange={(e) => edit((x) => setThirdPlace(x, user, e.target.checked))} />
+      Third-place match between the semi-final losers
+    </label>
+  );
 
   if (t.phase === "setup") {
     if (!organiser) return <Notice>The organiser is still setting up this tournament.</Notice>;
@@ -151,19 +182,23 @@ function PhaseBar({
         </ol>
         <button
           type="button"
-          onClick={() => run((x, all) => {
-            const r = generateFixtures(x, user, all);
-            return { tournament: r.tournament, matches: r.created };
-          })}
+          onClick={() => {
+            const err = run((x, all) => {
+              const r = generateFixtures(x, user, all);
+              return { item: r.tournament, matches: r.created, ties: r.ties };
+            });
+            if (!err) onAdvanced(t.structure === "knockout" ? "knockout" : "groups");
+          }}
           className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background"
         >
           Generate fixtures
         </button>
+        {thirdToggle}
       </div>
     );
   }
   if (t.phase === "groups" && groupFixtures.length > 0) {
-    const ready = t.structure === "groups_knockout" && groupStageComplete(t, matches);
+    const ready = t.structure === "groups_knockout" && groupStageComplete(t, data);
     return (
       <div className="rounded-2xl border border-border bg-surface p-4">
         <p className="font-semibold">
@@ -174,10 +209,13 @@ function PhaseBar({
             <button
               type="button"
               disabled={!ready}
-              onClick={() => run((x, all) => {
-                const r = startKnockout(x, user, all);
-                return { tournament: r.tournament, matches: r.created };
-              })}
+              onClick={() => {
+                const err = run((x, all) => {
+                  const r = startKnockout(x, user, all);
+                  return { item: r.tournament, matches: r.created, ties: r.ties };
+                });
+                if (!err) onAdvanced("knockout");
+              }}
               className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background disabled:opacity-40"
             >
               Start knockout with top {t.qualifiersPerGroup} of each group
@@ -188,8 +226,12 @@ function PhaseBar({
         {t.structure === "groups_knockout" && !ready && organiser && (
           <p className="mt-1 text-xs text-muted">Available once every group match is closed.</p>
         )}
+        {thirdToggle}
       </div>
     );
+  }
+  if (t.phase === "knockout" && organiser && t.structure !== "league") {
+    return <div className="rounded-2xl border border-border bg-surface px-4 pb-3">{thirdToggle}</div>;
   }
   return null;
 }
@@ -294,8 +336,8 @@ function EntriesTab({
               submitLabel="Add"
               onSubmit={(key) =>
                 runTournamentAction(t.id, (x, all) => {
-                  const r = addTournamentScorer(x, Object.values(all), user, key);
-                  return { tournament: r.tournament, matches: r.matches };
+                  const r = addTournamentScorer(x, all, user, key);
+                  return { item: r.tournament, matches: r.matches, ties: r.ties };
                 })
               }
             />
@@ -370,13 +412,13 @@ function AddEntryForm({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tou
 
 function GroupsTab({
   t,
-  matches,
+  data,
   organiser,
   edit,
   user,
 }: {
   t: Tournament;
-  matches: Matches;
+  data: Data;
   organiser: boolean;
   edit: (mutate: (x: Tournament) => Tournament) => void;
   user: string;
@@ -385,14 +427,14 @@ function GroupsTab({
 
   if (t.structure === "league") {
     if (setup) return <Notice>Everyone plays everyone once. The table appears when fixtures are generated.</Notice>;
-    return <PointsTable t={t} group={t.groups[0]} matches={matches} qualify={0} />;
+    return <PointsTable t={t} group={t.groups[0]} data={data} qualify={0} />;
   }
 
   if (!setup) {
     return (
       <div className="space-y-4">
         {t.groups.map((g) => (
-          <PointsTable key={g.id} t={t} group={g} matches={matches} qualify={t.qualifiersPerGroup} />
+          <PointsTable key={g.id} t={t} group={g} data={data} qualify={t.qualifiersPerGroup} />
         ))}
       </div>
     );
@@ -502,13 +544,15 @@ function GroupsTab({
   );
 }
 
-function FixturesTab({ t, matches }: { t: Tournament; matches: Matches }) {
+function FixturesTab({ t, data }: { t: Tournament; data: Data }) {
   const sections: { title: string; fixtures: typeof t.fixtures }[] = [];
   for (const g of t.groups) {
     const list = t.fixtures.filter((f) => f.groupId === g.id).sort((a, b) => a.round - b.round || a.index - b.index);
     if (list.length) sections.push({ title: g.name, fixtures: list });
   }
-  const knockout = t.fixtures.filter((f) => f.stage === "knockout").sort((a, b) => a.round - b.round || a.index - b.index);
+  const knockout = t.fixtures
+    .filter((f) => f.stage === "knockout")
+    .sort((a, b) => a.round - b.round || Number(!!a.third) - Number(!!b.third) || a.index - b.index);
   if (knockout.length) sections.push({ title: "Knockout", fixtures: knockout });
 
   return (
@@ -518,7 +562,7 @@ function FixturesTab({ t, matches }: { t: Tournament; matches: Matches }) {
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{s.title}</h2>
           <div className="space-y-2">
             {s.fixtures.map((f) => (
-              <FixtureCard key={f.id} t={t} fixture={f} matches={matches} />
+              <FixtureCard key={f.id} t={t} fixture={f} data={data} />
             ))}
           </div>
         </section>

@@ -87,8 +87,16 @@ export function rulesResolver(match: Pick<Match, "rules" | "ruleChanges">): Rule
   };
 }
 
+/**
+ * Full state of a match. A closed match with a retirement or walkover outcome counts as won by the
+ * awarded side, so tables, brackets and scoreboards treat it like any other result.
+ */
 export function matchState(match: Match): MatchState {
-  return computeState(match.events, rulesResolver(match));
+  const state = computeState(match.events, rulesResolver(match));
+  if (!state.winner && match.status === "closed" && match.outcome?.winner) {
+    return { ...state, winner: match.outcome.winner, setPoint: null, matchPoint: null };
+  }
+  return state;
 }
 
 /** Replays the event log and derives the full match state. The log is the single source of truth. */
