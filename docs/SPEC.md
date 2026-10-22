@@ -14,7 +14,8 @@ commentary feed, results, standings and the overall medal table. All results are
 
 ### In Version 1
 - Organiser accounts; any organiser can create and manage their own events
-- Event setup: sports, categories, venues, teams/participants with rosters (names, jersey numbers)
+- Event setup: sports, categories, venues, teams/participants per sport with rosters (names, jersey numbers)
+- Optional organisations (colleges, houses, companies) that teams/players are linked to for the overall medal tally
 - Pre-built rule templates per sport, fully customisable
 - Fixture formats: knockout, round-robin, groups → knockout, heats → final
 - **Point-by-point live scoring** with optional detail (how the point was won, who scored)
@@ -124,8 +125,9 @@ This design means commentary and future statistics need **no rewrite**: the data
 ### Basic flow (every sport)
 1. Scorer taps **+** (or `+2`, `+3` etc.) on the side that won the point
 2. If detail prompts are on, a quick bottom sheet appears:
-   - **How?** — action buttons from the sport's catalogue (e.g. Smash / Drop / Opponent error)
-   - **Who?** — player picker showing names and jersey numbers of that side
+   - **How?** — action buttons from the sport's catalogue (e.g. for badminton: Smash / Drop /
+     Opponent misjudged / Into the net or out). Only shown for sports whose catalogue has "how" actions.
+   - **Who?** — player picker showing names and jersey numbers of that side (e.g. basketball asks only this)
 3. Scorer taps an option or **Skip** — the point is already counted; detail is optional
 4. Commentary line is generated instantly
 
@@ -220,13 +222,15 @@ Common: match clock (start / pause / resume), period control, draw allowed or ti
 | Empty raid | 0 | Raider |
 | Do-or-die raid (flag) | — | Raider |
 
-**Basketball (template):** 4 quarters × 10 min.
-| Action | Points | Asks |
+**Basketball (template):** 4 quarters × 10 min. Points and scorer only — no "how" prompt;
+the button pressed (`+1`, `+2`, `+3`) defines the shot type.
+| Button | Points | Asks |
 |---|---|---|
 | Free throw | +1 | Scorer (name / jersey) |
-| Field goal | +2 | Scorer, assist (optional) |
-| Three-pointer | +3 | Scorer, assist (optional) |
-| Foul | 0 | Player |
+| Two-pointer | +2 | Scorer (name / jersey) |
+| Three-pointer | +3 | Scorer (name / jersey) |
+
+Commentary: `"#{jersey} {actor} scores a two-pointer"` / `"... a three-pointer!"`.
 
 ### 8.3 Result only — Chess
 Win / Draw / Loss (1 – ½ – 0 by default, configurable). Formats: knockout, round-robin (Swiss later).
@@ -245,7 +249,24 @@ Optional tiebreak entry (rapid / armageddon). Commentary: "{white} beats {black}
 Organiser names any sport, picks a model, and builds its action catalogue
 (e.g. Kho-Kho → timed points with "Tag", "Dive" actions).
 
-## 9. Formats & Standings
+## 9. Teams, Organisations, Formats & Standings
+
+### Teams per sport
+- The organiser adds teams / individual participants **to each specific sport and category**
+  (e.g. "Team Alpha" in Men's Football, "Riya Sharma" in Women's Singles Badminton)
+- A team or player can be added fresh, or picked from people already registered in the event
+  (so one player can appear in several sports)
+- Rosters (player names, jersey numbers) are maintained per team per sport
+
+### Organisations (for the overall medal tally)
+- Optionally, the organiser creates **organisations** in the event (e.g. colleges, schools, houses,
+  companies, clubs) and links any team or player to one
+- Medals won by a linked team/player count towards **that organisation** in the overall medal tally
+- Teams/players not linked to an organisation appear in the tally under their own name
+- Links can be changed at any time; the tally recalculates
+- Each organisation gets a public page with all its teams, results and medals
+
+### Formats
 - **Knockout:** auto bracket, byes, seeding (manual or random), optional third-place match or shared bronze
 - **Round-robin / league:** points per win/draw/loss configurable; tiebreakers: points → head-to-head → score difference → score for
 - **Groups → knockout:** top N per group advance
@@ -256,7 +277,9 @@ Organiser names any sport, picks a model, and builds its action catalogue
 - Medals awarded **automatically** from closed results (knockout final, league winner, athletics final)
 - **Manual medal entry**: organiser types any sport/event name and awards any medal (gold/silver/bronze or a custom medal) to any team or player
 - Table modes: medal count (gold-first ranking) or points (e.g. gold 5, silver 3, bronze 1 — configurable)
-- Grouping by team, institution or house
+- Overall tally grouped by **organisation** (linked teams/players), with unlinked teams/players listed individually
+- Per-sport medal view also available (by team/player)
+- Manual medals can also be awarded directly to an organisation
 
 ## 11. Screens
 
@@ -272,7 +295,8 @@ Organiser names any sport, picks a model, and builds its action catalogue
 ### Organiser / Admin
 - Sign up / login, my events dashboard
 - Create event wizard: details → sports (from templates) → customise rules & action catalogue → venues
-- Teams / participants / rosters with jersey numbers (manual + CSV upload)
+- Teams / participants per sport & category, rosters with jersey numbers (manual + CSV upload)
+- Organisations: create, link teams/players for the overall medal tally
 - Fixture generator and editor, scorer assignment
 - Scorer access codes (generate, revoke)
 - Manual medal entry
@@ -308,7 +332,11 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 - `event_sports` (sport, scoring_model, rules_config JSON, format, default detail settings)
 - `action_catalogue` (event_sport, key, label, points, asks_actor, asks_related, commentary_templates, enabled, sort)
 - `categories` (e.g. Men's Singles U-19)
-- `teams`, `participants` (name, jersey_number), `team_members`
+- `organisations` (event, name, short name, logo) — optional grouping for the medal tally
+- `participants` (event-level person: name, organisation_id optional)
+- `teams` (event_sport / category, name, organisation_id optional)
+- `team_members` (team, participant, jersey_number)
+- `entries` (category ↔ team or individual participant registered in that sport)
 - `stages` / `groups` (group stage, knockout rounds, heats)
 - `matches` (fixture, venue, start time, status, closed_at, closed_by, livestream_url, detail settings, version)
 - `match_sides` (team/participant per side or lane)
@@ -317,7 +345,7 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 - `score_event_history` (audit trail of post-close edits: old → new, by, at)
 - `commentary` (derived view / table regenerated from score_events + system events)
 - `performances` (athletics marks, attempts, status)
-- `medals` (event, sport label, medal type, team/participant, source: auto | manual)
+- `medals` (event, sport label, medal type, team / participant / organisation, source: auto | manual)
 - `scorer_codes` (code hash, event, allowed matches, expiry, revoked)
 
 ## 14. Roadmap
@@ -325,7 +353,7 @@ Note: Supabase free-tier projects pause after a period of inactivity; upgrade be
 | Phase | Deliverable |
 |---|---|
 | 0 | Spec agreed (this document) |
-| 1 — Foundation | Next.js + Supabase setup, schema, organiser/admin auth, event / venue / sport setup, teams, participants, rosters with jersey numbers (incl. CSV) |
+| 1 — Foundation | Next.js + Supabase setup, schema, organiser/admin auth, event / venue / sport setup, organisations, teams & participants per sport, rosters with jersey numbers (incl. CSV) |
 | 2 — Fixtures & access | Knockout, round-robin, groups → knockout generators, manual fixtures, schedule, scorer codes and assignment |
 | 3 — Scoring engine core | Point-by-point event log, Quick mode `+1/+2/+3`, Undo (until close), Close match, post-close admin editing with audit, multi-scorer realtime sync, match lifecycle |
 | 4 — Sport rules | Sets / rally (badminton, table tennis, volleyball), timed points (football, kabaddi, basketball template), result only (chess) — auto set/period/match completion |
