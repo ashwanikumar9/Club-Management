@@ -9,6 +9,7 @@ import {
   groupStageComplete,
   isByeFixture,
   fixtureOutcome,
+  isMain,
   qualifiers,
   resolveSides,
   roundName,
@@ -73,6 +74,7 @@ export function createTournament(input: NewTournamentInput): Tournament {
     entries: [],
     groups: input.structure === "groups_knockout" ? makeGroups(2) : [],
     fixtures: [],
+    stages: [],
     phase: "setup",
     createdAt: now(),
     version: 0,
@@ -158,9 +160,9 @@ export function setQualifiers(t: Tournament, by: string, perGroup: number): Tour
 export function setThirdPlace(t: Tournament, by: string, on: boolean): Tournament {
   requireOrganiser(t, by);
   if (t.structure === "league") throw new MutationError("A league has no knockout, so there's no third-place match.");
-  const existing = t.fixtures.find((f) => f.third);
-  if (on && !existing && t.fixtures.some((f) => f.stage === "knockout")) {
-    const fixture = thirdPlaceFixture(t.fixtures, newId);
+  const existing = t.fixtures.find((f) => f.third && isMain(f));
+  if (on && !existing && t.fixtures.some((f) => f.stage === "knockout" && isMain(f))) {
+    const fixture = thirdPlaceFixture(t.fixtures.filter(isMain), newId);
     if (!fixture) throw new MutationError("The bracket has no semi-finals, so there's no third-place match.");
     return { ...t, thirdPlace: true, fixtures: [...t.fixtures, fixture], phase: t.phase === "complete" ? "knockout" : t.phase };
   }
@@ -225,18 +227,35 @@ function entryById(t: Tournament, id: string): Entry {
 }
 
 export function fixtureLabel(t: Tournament, f: Fixture): string {
+  if (f.stageId) {
+    const stage = (t.stages ?? []).find((s) => s.id === f.stageId);
+    const name = stage?.name ?? "Extra round";
+    if (stage?.kind === "league") {
+      const group = stage.groups.find((g) => g.id === f.groupId);
+      return `${name}${stage.groups.length > 1 && group ? ` · ${group.name}` : ""} · Round ${f.round}`;
+    }
+    if (stage?.kind === "knockout") {
+      if (f.third) return `${name} · Third place`;
+      const inStage = t.fixtures.filter((x) => x.stageId === f.stageId && !x.third);
+      const total = Math.max(...inStage.map((x) => x.round));
+      const inRound = inStage.filter((x) => x.round === f.round).length;
+      return `${name} · ${roundName(f.round, total)}${inRound > 1 ? ` ${f.index + 1}` : ""}`;
+    }
+    return `${name} · Match ${f.index + 1}`;
+  }
   if (f.stage === "group") {
     const group = t.groups.find((g) => g.id === f.groupId);
     return t.structure === "league" ? `League · Round ${f.round}` : `${group?.name ?? "Group"} · Round ${f.round}`;
   }
   if (f.third) return "Third place";
-  const rounds = Math.max(...t.fixtures.filter((x) => x.stage === "knockout").map((x) => x.round));
+  const main = t.fixtures.filter((x) => x.stage === "knockout" && isMain(x));
+  const rounds = Math.max(...main.map((x) => x.round));
   const name = roundName(f.round, rounds);
-  const inRound = t.fixtures.filter((x) => x.stage === "knockout" && x.round === f.round && !x.third).length;
+  const inRound = main.filter((x) => x.round === f.round && !x.third).length;
   return inRound > 1 ? `${name} · Match ${f.index + 1}` : name;
 }
 
-function matchForFixture(t: Tournament, f: Fixture, a: string, b: string): Match {
+export function matchForFixture(t: Tournament, f: Fixture, a: string, b: string): Match {
   const ea = entryById(t, a);
   const eb = entryById(t, b);
   const label = fixtureLabel(t, f);
@@ -259,7 +278,7 @@ function matchForFixture(t: Tournament, f: Fixture, a: string, b: string): Match
   };
 }
 
-function tieForFixture(t: Tournament, f: Fixture, a: string, b: string): Tie {
+export function tieForFixture(t: Tournament, f: Fixture, a: string, b: string): Tie {
   const ea = entryById(t, a);
   const eb = entryById(t, b);
   const label = fixtureLabel(t, f);
@@ -284,7 +303,7 @@ export interface Created {
 }
 
 /** Creates the match (or team tie) for each fixture whose two sides are now known. */
-function createReady(t: Tournament, data: Data): Created {
+export function createReady(t: Tournament, data: Data): Created {
   const created: Match[] = [];
   const ties: Tie[] = [];
   const all: Data = { matches: { ...data.matches }, ties: { ...data.ties } };
@@ -394,7 +413,10 @@ export function syncTournament(t: Tournament, data: Data): Created & { updated: 
   for (const m of ready.created) merged.matches[m.id] = m;
   for (const x of ready.ties) merged.ties[x.id] = x;
   const finished = tournamentFinished(ready.tournament, merged);
-  const playing = t.structure === "league" || (t.structure === "groups_knockout" && !t.fixtures.some((f) => f.stage === "knockout")) ? "groups" : "knockout";
+  const playing =
+    t.structure === "league" || (t.structure === "groups_knockout" && !t.fixtures.some((f) => f.stage === "knockout" && isMain(f)))
+      ? "groups"
+      : "knockout";
   const phase = finished ? "complete" : t.phase === "complete" ? playing : t.phase;
   if (!ready.created.length && !ready.ties.length && !updated.length && !updatedTies.length && phase === t.phase) return none;
   return { ...ready, tournament: { ...ready.tournament, phase }, updated, updatedTies };

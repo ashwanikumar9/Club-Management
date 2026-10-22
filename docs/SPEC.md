@@ -425,6 +425,16 @@ Built in this order: tournaments first (with singles / doubles / volleyball team
 - Schedule tab grouped by day with times and courts, per-fixture editing, "Copy schedule as text" for
   WhatsApp; single matches and team ties take an optional date and start time
 
+### Editable fixtures and extra rounds
+- **Edit any fixture before it starts**: change who plays (e.g. after a withdrawal), swap sides, or delete
+  it (knockout fixtures that decide a later round can be re-paired but not deleted); its match or tie is
+  updated or removed with it
+- **Add a match** to any group of the main event or of a round-robin round
+- **More rounds** on top of the main structure, each with its own name: a round-robin round in one or more
+  groups with its own tables (e.g. Super 4), a seeded knockout with optional third place (e.g. a Plate for
+  "didn't make the knockout"), or a set of one-off matches; rounds can be removed while none of their
+  matches has started. Extra rounds never change the main tables, qualification or champion
+
 ### Retirements, walkovers and no result
 - A match that isn't played to a finish is closed by the scorer (or organiser) with how it ended:
   - **Retired** — one side retired during play; the opponent is awarded the match; the score so far is kept

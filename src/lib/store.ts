@@ -303,6 +303,9 @@ export interface ActionResult<T> {
   item: T;
   matches?: Match[];
   ties?: Tie[];
+  /** Matches / ties that no longer belong anywhere (e.g. a deleted fixture). */
+  deleteMatches?: string[];
+  deleteTies?: string[];
 }
 
 /**
@@ -327,6 +330,8 @@ function runAction<T extends Versioned>(
       if (!result) return;
       matches.saveMany(result.matches ?? []);
       ties.saveMany(result.ties ?? []);
+      for (const id of result.deleteMatches ?? []) matches.remove(id);
+      for (const id of result.deleteTies ?? []) ties.remove(id);
       afterSaved?.();
     },
   );

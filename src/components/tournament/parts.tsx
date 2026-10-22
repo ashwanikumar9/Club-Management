@@ -13,6 +13,7 @@ import {
   standings,
   type Data,
 } from "@/lib/tournament/engine";
+import { fixtureLabel } from "@/lib/tournament/mutations";
 import { formatSchedule } from "@/lib/tournament/schedule";
 import type { Fixture, Group, Tournament } from "@/lib/tournament/types";
 
@@ -110,9 +111,7 @@ export function FixtureCard({
     if (source.type === "winner" || source.type === "loser") {
       const from = t.fixtures.find((f) => f.id === source.fixtureId);
       if (!from) return "TBD";
-      const total = Math.max(...t.fixtures.filter((f) => f.stage === "knockout").map((f) => f.round));
-      const inRound = t.fixtures.filter((f) => f.stage === "knockout" && f.round === from.round && !f.third).length;
-      return `${source.type === "winner" ? "Winner" : "Loser"} ${roundName(from.round, total)}${inRound > 1 ? ` ${from.index + 1}` : ""}`;
+      return `${source.type === "winner" ? "Winner" : "Loser"} ${fixtureLabel(t, from)}`;
     }
     return "TBD";
   };
@@ -134,7 +133,7 @@ export function FixtureCard({
     );
   };
 
-  const label = fixture.third ? "Third place" : (match?.tournament?.label ?? tie?.tournament?.label ?? (bye ? "Bye" : ""));
+  const label = bye ? "Bye" : fixtureLabel(t, fixture);
   const body = (
     <div className={`space-y-1 rounded-xl border border-border bg-surface ${compact ? "p-2 text-sm" : "p-3"}`}>
       {(!compact || fixture.third) && (
@@ -162,8 +161,8 @@ export function FixtureCard({
 }
 
 /** Knockout bracket: one column per round, scrolls sideways on phones. */
-export function Bracket({ t, data }: { t: Tournament; data: Data }) {
-  const knockout = t.fixtures.filter((f) => f.stage === "knockout");
+export function Bracket({ t, data, stageId }: { t: Tournament; data: Data; stageId?: string }) {
+  const knockout = t.fixtures.filter((f) => f.stage === "knockout" && f.stageId === stageId);
   if (knockout.length === 0) return null;
   const total = Math.max(...knockout.map((f) => f.round));
   // The third-place match sits under the final.

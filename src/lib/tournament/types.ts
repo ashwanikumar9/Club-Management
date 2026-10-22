@@ -55,6 +55,22 @@ export interface Fixture {
   /** The third-place play-off between the semi-final losers. */
   third?: boolean;
   schedule?: Schedule;
+  /** Set for fixtures of an extra round added by the organiser (not part of the main structure). */
+  stageId?: string;
+}
+
+/**
+ * An extra round the organiser adds on top of the main structure, e.g. a "Super 4" round-robin, a
+ * "Plate" knockout for teams that didn't qualify, or a few one-off matches.
+ */
+export interface Stage {
+  id: string;
+  name: string;
+  kind: "league" | "knockout" | "matches";
+  entryIds: string[];
+  /** League rounds: the groups of this round (separate from the main groups). */
+  groups: Group[];
+  thirdPlace: boolean;
 }
 
 export interface PointsConfig {
@@ -87,8 +103,11 @@ export interface Tournament {
    */
   tieMatchCount?: number;
   entries: Entry[];
+  /** Groups of the main structure. */
   groups: Group[];
   fixtures: Fixture[];
+  /** Extra rounds added by the organiser. */
+  stages: Stage[];
   phase: TournamentPhase;
   createdAt: string;
   version: number;

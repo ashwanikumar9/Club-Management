@@ -43,6 +43,9 @@ export function seedOrder(entries: Entry[]): Entry[] {
   return [...seeded, ...unseeded];
 }
 
+/** Whether a fixture belongs to the main structure (not an extra round). */
+export const isMain = (f: Fixture) => !f.stageId;
+
 /** Spreads entries over groups in snake order (A B C C B A …) so top seeds land in different groups. */
 export function snakeAssign(orderedIds: string[], groupCount: number): string[][] {
   const groups: string[][] = Array.from({ length: groupCount }, () => []);
@@ -290,11 +293,11 @@ export function qualifiers(t: Tournament, data: Data): string[] {
 }
 
 export function groupStageComplete(t: Tournament, data: Data): boolean {
-  return t.fixtures.filter((f) => f.stage === "group").every((f) => fixtureOutcome(f, data).winner);
+  return t.fixtures.filter((f) => f.stage === "group" && isMain(f)).every((f) => fixtureOutcome(f, data).winner);
 }
 
-export function finalFixture(t: Tournament): Fixture | undefined {
-  const knockout = t.fixtures.filter((f) => f.stage === "knockout" && !f.third);
+export function finalFixture(t: Tournament, stageId?: string): Fixture | undefined {
+  const knockout = t.fixtures.filter((f) => f.stage === "knockout" && !f.third && f.stageId === stageId);
   if (knockout.length === 0) return undefined;
   const last = Math.max(...knockout.map((f) => f.round));
   return knockout.find((f) => f.round === last);

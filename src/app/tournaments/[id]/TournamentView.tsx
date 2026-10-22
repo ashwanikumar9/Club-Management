@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { use, useState } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
-import { Bracket, FixtureCard, PointsTable, entryName } from "@/components/tournament/parts";
+import { Bracket, PointsTable, entryName } from "@/components/tournament/parts";
 import { ScheduleTab } from "@/components/tournament/ScheduleTab";
+import { AddMatch, EditFixtureSheet, FixtureList, RoundsTab } from "@/components/tournament/RoundsTab";
 import { addEntries, parseBulkEntries } from "@/lib/tournament/schedule";
 import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
 import { describeRules } from "@/lib/rally/rules";
-import { fixtureOutcome, groupStageComplete, podium, type Data } from "@/lib/tournament/engine";
+import { fixtureOutcome, groupStageComplete, isMain, podium, type Data } from "@/lib/tournament/engine";
 import {
   addEntry,
   addTournamentScorer,
@@ -25,11 +26,11 @@ import {
   setThirdPlace,
   startKnockout,
 } from "@/lib/tournament/mutations";
-import type { Tournament } from "@/lib/tournament/types";
+import type { Fixture, Tournament } from "@/lib/tournament/types";
 import { runTournamentAction, updateTournament, useMatches, useTies, useTournament, useUser } from "@/lib/store";
 import { STRUCTURES } from "../new/TournamentForm";
 
-type Tab = "entries" | "groups" | "fixtures" | "schedule" | "bracket";
+type Tab = "entries" | "groups" | "fixtures" | "schedule" | "bracket" | "rounds";
 
 export function TournamentView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -59,10 +60,12 @@ function View({ t, data }: { t: Tournament; data: Data }) {
     ...(!setup ? [{ key: "fixtures" as const, label: "Fixtures" }] : []),
     ...(t.structure !== "league" && !setup ? [{ key: "bracket" as const, label: "Bracket" }] : []),
     ...(!setup ? [{ key: "schedule" as const, label: "Schedule" }] : []),
+    ...(!setup && (organiser || (t.stages ?? []).length > 0) ? [{ key: "rounds" as const, label: "More rounds" }] : []),
   ];
   const [tab, setTab] = useState<Tab>(setup ? "entries" : t.structure === "knockout" ? "bracket" : "groups");
   const active = tabs.some((x) => x.key === tab) ? tab : tabs[0].key;
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Fixture | null>(null);
   const run = (action: Parameters<typeof runTournamentAction>[1]) => {
     const err = runTournamentAction(t.id, action);
     setError(err);
@@ -135,11 +138,15 @@ function View({ t, data }: { t: Tournament; data: Data }) {
 
       {active === "entries" && <EntriesTab t={t} organiser={organiser} edit={edit} user={user ?? ""} />}
       {active === "groups" && <GroupsTab t={t} data={data} organiser={organiser} edit={edit} user={user ?? ""} />}
-      {active === "fixtures" && <FixturesTab t={t} data={data} />}
+      {active === "fixtures" && (
+        <FixturesTab t={t} data={data} organiser={organiser} user={user ?? ""} onEdit={setEditing} setError={setError} />
+      )}
+      {active === "rounds" && <RoundsTab t={t} data={data} organiser={organiser} user={user ?? ""} onEdit={setEditing} />}
+      {editing && <EditFixtureSheet t={t} data={data} fixture={editing} user={user ?? ""} onClose={() => setEditing(null)} />}
       {active === "schedule" && <ScheduleTab t={t} data={data} organiser={organiser} user={user ?? ""} />}
       {active === "bracket" && (
         <>
-          {t.fixtures.some((f) => f.stage === "knockout") ? (
+          {t.fixtures.some((f) => f.stage === "knockout" && isMain(f)) ? (
             <Bracket t={t} data={data} />
           ) : (
             <p className="py-6 text-center text-sm text-muted">The bracket appears when the group stage is finished.</p>
@@ -169,7 +176,7 @@ function PhaseBar({
   /** Called after fixtures are generated or the knockout starts, to show the new stage. */
   onAdvanced: (stage: "groups" | "knockout") => void;
 }) {
-  const groupFixtures = t.fixtures.filter((f) => f.stage === "group");
+  const groupFixtures = t.fixtures.filter((f) => f.stage === "group" && isMain(f));
   const done = groupFixtures.filter((f) => fixtureOutcome(f, data).winner).length;
   const thirdToggle = organiser && t.structure !== "league" && t.phase !== "complete" && (
     <label className="mt-3 flex items-center gap-2 text-sm">
@@ -596,27 +603,47 @@ function GroupsTab({
   );
 }
 
-function FixturesTab({ t, data }: { t: Tournament; data: Data }) {
-  const sections: { title: string; fixtures: typeof t.fixtures }[] = [];
-  for (const g of t.groups) {
-    const list = t.fixtures.filter((f) => f.groupId === g.id).sort((a, b) => a.round - b.round || a.index - b.index);
-    if (list.length) sections.push({ title: g.name, fixtures: list });
-  }
-  const knockout = t.fixtures
-    .filter((f) => f.stage === "knockout")
-    .sort((a, b) => a.round - b.round || Number(!!a.third) - Number(!!b.third) || a.index - b.index);
-  if (knockout.length) sections.push({ title: "Knockout", fixtures: knockout });
-
+function FixturesTab({
+  t,
+  data,
+  organiser,
+  user,
+  onEdit,
+  setError,
+}: {
+  t: Tournament;
+  data: Data;
+  organiser: boolean;
+  user: string;
+  onEdit: (f: Fixture) => void;
+  setError: (e: string | null) => void;
+}) {
+  const knockout = t.fixtures.filter((f) => f.stage === "knockout" && isMain(f));
   return (
     <div className="space-y-5">
-      {sections.map((s) => (
-        <section key={s.title}>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{s.title}</h2>
-          <div className="space-y-2">
-            {s.fixtures.map((f) => (
-              <FixtureCard key={f.id} t={t} fixture={f} data={data} />
-            ))}
-          </div>
+      {t.groups.map((g) => (
+        <section key={g.id} className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{g.name}</h2>
+          <FixtureList t={t} data={data} fixtures={t.fixtures.filter((f) => f.groupId === g.id)} organiser={organiser} onEdit={onEdit} />
+          {organiser && <AddMatch t={t} user={user} where={{ groupId: g.id }} label={`Add a match to ${g.name}`} setError={setError} />}
+        </section>
+      ))}
+      {knockout.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Knockout</h2>
+          <FixtureList
+            t={t}
+            data={data}
+            fixtures={[...knockout].sort((a, b) => a.round - b.round || Number(!!a.third) - Number(!!b.third) || a.index - b.index)}
+            organiser={organiser}
+            onEdit={onEdit}
+          />
+        </section>
+      )}
+      {(t.stages ?? []).map((stage) => (
+        <section key={stage.id} className="space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{stage.name}</h2>
+          <FixtureList t={t} data={data} fixtures={t.fixtures.filter((f) => f.stageId === stage.id)} organiser={organiser} onEdit={onEdit} />
         </section>
       ))}
     </div>

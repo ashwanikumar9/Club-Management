@@ -62,8 +62,10 @@ export interface AutoScheduleOptions {
 
 /** Order to play fixtures: group rounds interleaved across groups, then knockout rounds (third place before final). */
 function playOrder(t: Tournament): Fixture[] {
-  const groupOrder = new Map(t.groups.map((g, i) => [g.id, i]));
+  const groupOrder = new Map([...t.groups, ...(t.stages ?? []).flatMap((s) => s.groups)].map((g, i) => [g.id, i]));
+  const stageOrder = new Map((t.stages ?? []).map((s, i) => [s.id, i + 1]));
   const rank = (f: Fixture) => [
+    f.stageId ? (stageOrder.get(f.stageId) ?? 99) : 0,
     f.stage === "group" ? 0 : 1,
     f.round,
     f.third ? 0 : 1,
