@@ -28,6 +28,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </Link>
             <UserMenu />
           </div>
+          <nav className="mx-auto flex max-w-3xl gap-4 px-4 pb-2 text-sm font-medium text-muted">
+            <Link href="/">Matches</Link>
+            <Link href="/players">Players</Link>
+            <Link href="/me">🪪 My card</Link>
+          </nav>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4">{children}</main>
         <SyncNotice />

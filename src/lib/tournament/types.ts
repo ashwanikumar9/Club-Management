@@ -8,6 +8,8 @@ export type TournamentPhase = "setup" | "groups" | "knockout" | "complete";
 export interface EntryPlayer {
   name: string;
   jersey?: string;
+  /** Player card, when picked from the player cards. */
+  cardId?: string;
 }
 
 /** A team, pair or individual player taking part. */

@@ -22,6 +22,11 @@ the dashboard (or upgrade) before an event.
 2. Paste the whole of [`supabase/migrations/20261022000000_documents.sql`](../supabase/migrations/20261022000000_documents.sql)
    and click **Run**. It creates the `documents` table, turns on live updates for it and adds the
    permission rules.
+3. New query again: paste [`supabase/migrations/20261023000000_player_cards.sql`](../supabase/migrations/20261023000000_player_cards.sql)
+   and click **Run**. It adds player cards and the private `player_contacts` table: a player's mobile number
+   or email is only visible to whoever added it and to the player.
+
+Already set up before player cards existed? Run only step 3.
 
 ## 3. Sign-in by code
 

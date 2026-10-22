@@ -49,7 +49,7 @@ export function createMatch(input: NewMatchInput): Match {
     name: input.sides[side].name.trim() || (side === "A" ? "Side A" : "Side B"),
     players: input.sides[side].players
       .filter((p) => p.name.trim())
-      .map((p) => ({ id: newId(), name: p.name.trim(), jersey: p.jersey?.trim() || undefined })),
+      .map((p) => ({ id: newId(), name: p.name.trim(), jersey: p.jersey?.trim() || undefined, cardId: p.cardId || undefined })),
   });
   return {
     id: newId(),

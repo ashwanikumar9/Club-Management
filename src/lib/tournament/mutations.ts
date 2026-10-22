@@ -109,7 +109,9 @@ function requireSetup(t: Tournament) {
 export function addEntry(t: Tournament, by: string, name: string, players: EntryPlayer[]): Tournament {
   requireOrganiser(t, by);
   requireSetup(t);
-  const clean = players.map((p) => ({ name: p.name.trim(), jersey: p.jersey?.trim() || undefined })).filter((p) => p.name);
+  const clean = players
+    .map((p) => ({ name: p.name.trim(), jersey: p.jersey?.trim() || undefined, cardId: p.cardId || undefined }))
+    .filter((p) => p.name);
   const entryName = name.trim() || clean.map((p) => p.name).join(" / ");
   if (!entryName) throw new MutationError("Enter a name.");
   if (t.entries.some((e) => e.name.toLowerCase() === entryName.toLowerCase())) {

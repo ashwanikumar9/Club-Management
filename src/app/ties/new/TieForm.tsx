@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RulesFields } from "@/components/RulesFields";
 import { SystemPicker } from "@/components/SystemPicker";
+import { CardPicker } from "@/components/cards/CardPicker";
 import { MutationError } from "@/lib/rally/mutations";
 import { SPORTS } from "@/lib/rally/sports";
 import type { RallyRules, SideKey } from "@/lib/rally/types";
@@ -14,6 +15,7 @@ import { saveTie, useUser } from "@/lib/store";
 interface Row {
   name: string;
   jersey: string;
+  cardId?: string;
 }
 
 interface Lineup {
@@ -160,6 +162,13 @@ export function TieForm() {
                   onChange={(e) => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })}
                   placeholder={`Player ${i + 1}`}
                   aria-label={`Team ${side} player ${i + 1}`}
+                />
+                <CardPicker
+                  name={p.name}
+                  cardId={p.cardId}
+                  sport={sport}
+                  onPick={(picked) => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, ...picked } : x)) })}
+                  onUnlink={() => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, cardId: undefined } : x)) })}
                 />
               </div>
             ))}

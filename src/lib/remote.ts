@@ -19,7 +19,7 @@ export function supabase(): SupabaseClient {
   return client;
 }
 
-export type CollectionName = "matches" | "tournaments" | "ties";
+export type CollectionName = "matches" | "tournaments" | "ties" | "players";
 
 export interface Row<T> {
   collection: CollectionName;
@@ -77,6 +77,27 @@ export async function updateRow<T>(collection: CollectionName, id: string, expec
 
 export async function deleteRow(collection: CollectionName, id: string) {
   const { error } = await supabase().from("documents").delete().eq("collection", collection).eq("id", id);
+  if (error) throw error;
+}
+
+export interface ContactRowData {
+  playerId: string;
+  contact: string;
+  addedBy: string;
+}
+
+/** Player contacts this person may see: the ones they added and their own. */
+export async function loadContacts(): Promise<ContactRowData[]> {
+  const { data, error } = await supabase().from("player_contacts").select("player_id,contact,added_by");
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ playerId: r.player_id as string, contact: r.contact as string, addedBy: r.added_by as string }));
+}
+
+export async function insertContacts(rows: ContactRowData[]) {
+  if (rows.length === 0) return;
+  const { error } = await supabase()
+    .from("player_contacts")
+    .insert(rows.map((r) => ({ player_id: r.playerId, contact: r.contact, added_by: r.addedBy })));
   if (error) throw error;
 }
 

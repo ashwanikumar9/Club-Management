@@ -7,7 +7,9 @@ import {
   deleteRow,
   fetchRow,
   identityOf,
+  insertContacts,
   insertRows,
+  loadContacts,
   loadCollection,
   remoteEnabled,
   subscribe as subscribeRemote,
@@ -16,6 +18,7 @@ import {
   type CollectionName,
   type Row,
 } from "./remote";
+import type { ContactRow, PlayerCard } from "./players/cards";
 import type { Tie } from "./tie/types";
 import type { Data } from "./tournament/engine";
 import { syncTournament } from "./tournament/mutations";
@@ -167,8 +170,8 @@ function collection<T extends Versioned>(name: CollectionName, localKey: string)
       void load();
       return cache;
     },
-    /** Creates or replaces records. */
-    saveMany: (items: T[]) => {
+    /** Creates or replaces records. Resolves once they are stored in the database (at once in prototype mode). */
+    saveMany: async (items: T[]): Promise<void> => {
       if (items.length === 0) return;
       const current = read();
       const stamped = items.map((i) => (current[i.id] ? { ...i, version: Math.max(i.version, current[i.id].version) + 1 } : i));
@@ -176,7 +179,7 @@ function collection<T extends Versioned>(name: CollectionName, localKey: string)
       for (const item of stamped) next[item.id] = item;
       setCache(next);
       if (remoteEnabled) {
-        insertRows(name, stamped.map((i) => ({ id: i.id, version: i.version, data: i }))).catch((e: Error) =>
+        await insertRows(name, stamped.map((i) => ({ id: i.id, version: i.version, data: i }))).catch((e: Error) =>
           reportSyncError(`Couldn't save: ${e.message}`),
         );
       }
@@ -217,7 +220,8 @@ function collection<T extends Versioned>(name: CollectionName, localKey: string)
 const matches = collection<Match>("matches", "cm.matches.v2");
 const tournaments = collection<Tournament>("tournaments", "cm.tournaments.v2");
 const ties = collection<Tie>("ties", "cm.ties.v1");
-const all = [matches, tournaments, ties];
+const players = collection<PlayerCard>("players", "cm.players.v1");
+const all = [matches, tournaments, ties, players];
 
 let remoteStarted = false;
 
@@ -227,6 +231,7 @@ function startRemote() {
   remoteStarted = true;
   // Load everything up front: closing a match also updates its tournament, even on pages that don't show it.
   for (const c of all) void c.load();
+  void contacts.reload();
   subscribeRemote((event, row) => {
     for (const c of all) c.receive(event, row);
   });
@@ -240,6 +245,7 @@ function subscribe(listener: () => void) {
   startRemote();
   const onStorage = (e: StorageEvent) => {
     for (const c of all) if (e.key === c.localKey) c.refreshLocal();
+    if (e.key === CONTACTS_KEY) contacts.refreshLocal();
     listener();
   };
   window.addEventListener("storage", onStorage);
@@ -259,8 +265,8 @@ export function useMatch(id: string): Match | null | undefined {
   return list[id] ?? null;
 }
 
-export const saveMatch = (match: Match) => matches.saveMany([match]);
-export const saveMatches = matches.saveMany;
+export const saveMatch = (match: Match) => void matches.saveMany([match]);
+export const saveMatches = (list: Match[]) => void matches.saveMany(list);
 export const deleteMatch = matches.remove;
 
 /**
@@ -284,7 +290,7 @@ export function useTournament(id: string): Tournament | null | undefined {
   return list[id] ?? null;
 }
 
-export const saveTournament = (t: Tournament) => tournaments.saveMany([t]);
+export const saveTournament = (t: Tournament) => void tournaments.saveMany([t]);
 export const updateTournament = (id: string, mutate: (t: Tournament) => Tournament) => tournaments.update(id, mutate);
 
 export function useTies(): Collection<Tie> | null {
@@ -350,7 +356,93 @@ export function runTieAction(id: string, action: (t: Tie, data: Data) => ActionR
   return runAction(ties, id, action, tie.tournament ? () => syncTournamentById(tie.tournament!.id) : undefined);
 }
 
-export const saveTie = (tie: Tie) => ties.saveMany([tie]);
+export const saveTie = (tie: Tie) => void ties.saveMany([tie]);
+
+// ---------------------------------------------------------------------------------------------------------
+// Player cards and their private contacts
+
+const CONTACTS_KEY = "cm.playerContacts.v1";
+
+/**
+ * Contacts linking cards to mobile numbers / emails. With the database, only rows this person added or that
+ * are theirs can be read (reloaded when someone signs in); in prototype mode they live in this browser.
+ */
+const contacts = (() => {
+  let cache: ContactRow[] | null = null;
+  let latestLoad = 0;
+  const readLocal = (): ContactRow[] => {
+    try {
+      return JSON.parse(localStorage.getItem(CONTACTS_KEY) ?? "[]") as ContactRow[];
+    } catch {
+      return [];
+    }
+  };
+  const set = (rows: ContactRow[]) => {
+    cache = rows;
+    if (!remoteEnabled) {
+      try {
+        localStorage.setItem(CONTACTS_KEY, JSON.stringify(rows));
+      } catch {
+        // keep the in-memory copy
+      }
+    }
+    emit();
+  };
+  return {
+    get: (): ContactRow[] => (cache ??= remoteEnabled ? [] : readLocal()),
+    refreshLocal: () => {
+      if (!remoteEnabled) cache = readLocal();
+    },
+    reload: async () => {
+      if (!remoteEnabled) return;
+      // Sign-in can finish while an earlier (signed-out) load is still running: only the latest load counts.
+      const request = ++latestLoad;
+      try {
+        const rows = await loadContacts();
+        if (request === latestLoad) set(rows);
+      } catch (e) {
+        reportSyncError(`Couldn't load player contacts: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+    add: async (rows: ContactRow[]) => {
+      const current = remoteEnabled ? (cache ?? []) : readLocal();
+      set([...current, ...rows]);
+      if (remoteEnabled) {
+        await insertContacts(rows).catch((e: Error) => reportSyncError(`Couldn't save the contact: ${e.message}`));
+      }
+    },
+  };
+})();
+
+export function usePlayers(): Collection<PlayerCard> | null {
+  return useSyncExternalStore(subscribe, players.get, () => null);
+}
+
+export function usePlayer(id: string): PlayerCard | null | undefined {
+  const list = usePlayers();
+  if (list === null) return undefined;
+  return list[id] ?? null;
+}
+
+const NO_CONTACTS: ContactRow[] = [];
+
+/** Contacts visible to this person (see `contacts`). */
+export function usePlayerContacts(): ContactRow[] {
+  return useSyncExternalStore(subscribe, contacts.get, () => NO_CONTACTS);
+}
+
+/** Saves a new card, then its contacts (the database only accepts contacts for a card that exists). */
+export function savePlayerCard(card: PlayerCard, rows: ContactRow[]) {
+  void players.saveMany([card]).then(() => contacts.add(rows));
+}
+
+export const updatePlayerCard = (id: string, mutate: (card: PlayerCard) => PlayerCard) => players.update(id, mutate);
+
+export function addPlayerContact(row: ContactRow, card: PlayerCard): string | null {
+  const err = players.update(card.id, () => card);
+  if (!err) void contacts.add([row]);
+  return err;
+}
 
 /** Creates ready knockout matches / ties, fixes not-yet-started ones after corrections, and updates the phase. */
 export function syncTournamentById(id: string) {
@@ -374,8 +466,10 @@ const USER_KEY = "cm.user.v1";
 let userCache: string | null | undefined;
 
 function setUserCache(user: string | null) {
+  const changed = userCache !== user;
   userCache = user;
   emit();
+  if (changed) void contacts.reload(); // which contacts are visible depends on who is signed in
 }
 
 function readUser(): string | null {

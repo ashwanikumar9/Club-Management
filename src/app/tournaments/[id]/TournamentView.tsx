@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useState } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
+import { CardPicker } from "@/components/cards/CardPicker";
 import { Bracket, PointsTable, entryName } from "@/components/tournament/parts";
 import { ScheduleTab } from "@/components/tournament/ScheduleTab";
 import { AddMatch, EditFixtureSheet, FixtureList, RoundsTab } from "@/components/tournament/RoundsTab";
@@ -313,7 +314,20 @@ function EntriesTab({
         {t.entries.map((e) => (
           <li key={e.id} className="flex items-center gap-3 px-4 py-2.5">
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{e.name}</p>
+              <p className="truncate font-medium">
+                {e.name}
+                {e.players.some((p) => p.cardId) && (
+                  <span className="ml-1.5 inline-flex gap-1 text-xs">
+                    {e.players
+                      .filter((p) => p.cardId)
+                      .map((p) => (
+                        <Link key={p.cardId} href={`/players/${p.cardId}`} title={`${p.name}'s card`} className="text-accent">
+                          🪪
+                        </Link>
+                      ))}
+                  </span>
+                )}
+              </p>
               <p className="truncate text-xs text-muted">
                 {[
                   t.format !== "singles" && e.players.map((p) => (p.jersey ? `#${p.jersey} ${p.name}` : p.name)).join(", "),
@@ -430,7 +444,7 @@ function BulkEntries({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tour
 
 function AddEntryForm({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tournament) => Tournament) => void; user: string }) {
   const size = t.format === "singles" ? 1 : t.format === "doubles" ? 2 : 6;
-  const empty = () => Array.from({ length: size }, () => ({ name: "", jersey: "" }));
+  const empty = () => Array.from({ length: size }, (): { name: string; jersey: string; cardId?: string } => ({ name: "", jersey: "" }));
   const [name, setName] = useState("");
   const [players, setPlayers] = useState(empty);
   const label = t.format === "singles" ? "player" : t.format === "doubles" ? "pair" : "team";
@@ -475,6 +489,13 @@ function AddEntryForm({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tou
             onChange={(e) => setPlayers(players.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
             placeholder={t.format === "singles" ? "Player name" : `Player ${i + 1}${t.format === "team" ? " (optional)" : ""}`}
             aria-label={t.format === "singles" ? "Player name" : `Player ${i + 1}`}
+          />
+          <CardPicker
+            name={p.name}
+            cardId={p.cardId}
+            sport={t.sport}
+            onPick={(picked) => setPlayers(players.map((x, j) => (j === i ? { ...x, ...picked } : x)))}
+            onUnlink={() => setPlayers(players.map((x, j) => (j === i ? { ...x, cardId: undefined } : x)))}
           />
         </div>
       ))}

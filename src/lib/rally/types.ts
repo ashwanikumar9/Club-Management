@@ -46,6 +46,8 @@ export interface Player {
   id: string;
   name: string;
   jersey?: string;
+  /** The player's card, when picked from the player cards (links the match to their profile). */
+  cardId?: string;
 }
 
 export interface Side {

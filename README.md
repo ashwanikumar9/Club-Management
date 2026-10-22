@@ -13,6 +13,12 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
   Corbillon, Olympic, best of 7 / 9 with captains' letters), beach volleyball side changes, the new toss
   before a volleyball deciding set, interval reminders, and tournament templates for new organisers
   (Club night, Official knockout, Championship, Team championship, League season, Beach)
+- **Player cards**: one card per person for every sport, created by an organiser (mobile number and / or
+  email required) or by the player. Pick a card when adding someone to a match, tie or tournament and their
+  results, win rate, form, titles and medals, winning shots and upcoming matches follow them. The card
+  becomes the player's own when they sign in with that number or email ("My card" in the header). Contacts
+  stay private: others only see a masked hint
+- **Score cards**: one compact card per match, the same in every sport, used on the home page and profiles
 - **Editable fixtures and extra rounds**: re-pair, swap or delete fixtures before they start, add matches to
   groups, and add named rounds (round-robin, knockout or one-off matches) such as a Super 4 or a Plate
 - **Scheduling**: courts, date / time / court per fixture, auto-schedule with rest between matches,
@@ -91,6 +97,10 @@ change what. Step-by-step: [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md). T
 | `src/lib/tournament/presets.ts` | Tournament templates and seeding guidance |
 | `src/lib/rally/presets.ts` | Official and common rule presets per sport |
 | `src/lib/tie/systems.ts` | Official team-match systems |
+| `src/lib/players/cards.ts` | Player cards: create, edit, contacts, ownership, search |
+| `src/lib/players/stats.ts` | Player records, form, medals and winning shots from matches and tournaments |
+| `src/app/players`, `src/app/me` | Player directory, profiles and "My card" |
+| `src/components/cards` | Score card, player card and the card picker used in entry forms |
 | `src/lib/tournament/rounds.ts` | Extra rounds and fixture editing |
 | `src/lib/tournament/schedule.ts` | Auto-scheduler, schedule import, bulk entries |
 | `src/lib/tie/tie.ts` | Team ties: line-ups, match creation, tie score and winner |

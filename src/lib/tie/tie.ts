@@ -98,7 +98,9 @@ export interface NewTieInput {
 function teamFrom(side: { name: string; players: Omit<Player, "id">[]; entryId?: string }, fallback: string): TieTeam {
   return {
     name: side.name.trim() || fallback,
-    players: side.players.filter((p) => p.name.trim()).map((p) => ({ id: newId(), name: p.name.trim(), jersey: p.jersey?.trim() || undefined })),
+    players: side.players
+      .filter((p) => p.name.trim())
+      .map((p) => ({ id: newId(), name: p.name.trim(), jersey: p.jersey?.trim() || undefined, cardId: p.cardId || undefined })),
     entryId: side.entryId,
   };
 }
@@ -262,7 +264,7 @@ export function createSlotMatch(tie: Tie, by: string, index: number, matches: Ma
     name: playerLabel(tie.teams[s], slot.players![s]),
     players: slot.players![s].map((id) => {
       const p = tie.teams[s].players.find((x) => x.id === id)!;
-      return { name: p.name, jersey: p.jersey };
+      return { name: p.name, jersey: p.jersey, cardId: p.cardId };
     }),
   });
   const base = createMatch({

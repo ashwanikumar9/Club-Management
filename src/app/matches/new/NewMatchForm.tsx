@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
 import { RulesFields } from "@/components/RulesFields";
+import { CardPicker } from "@/components/cards/CardPicker";
 import { IDENTITY_ICON, identityKind } from "@/lib/identity";
 import { createMatch } from "@/lib/rally/mutations";
 import { validateRules } from "@/lib/rally/rules";
@@ -15,6 +16,7 @@ import { saveMatch, useUser } from "@/lib/store";
 interface PlayerRow {
   name: string;
   jersey: string;
+  cardId?: string;
 }
 
 interface SideForm {
@@ -171,11 +173,20 @@ export function NewMatchForm() {
             <div className={`text-sm font-bold ${side === "A" ? "text-side-a" : "text-side-b"}`}>Side {side}</div>
             {format === "singles" ? (
               <Field label="Player name">
-                <input
-                  value={sides[side].players[0]?.name ?? ""}
-                  onChange={(e) => updatePlayer(side, 0, { name: e.target.value })}
-                  placeholder={side === "A" ? "e.g. Riya Sharma" : "e.g. Asha Verma"}
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={sides[side].players[0]?.name ?? ""}
+                    onChange={(e) => updatePlayer(side, 0, { name: e.target.value })}
+                    placeholder={side === "A" ? "e.g. Riya Sharma" : "e.g. Asha Verma"}
+                  />
+                  <CardPicker
+                    name={sides[side].players[0]?.name ?? ""}
+                    cardId={sides[side].players[0]?.cardId}
+                    sport={sport}
+                    onPick={(p) => updatePlayer(side, 0, p)}
+                    onUnlink={() => updatePlayer(side, 0, { cardId: undefined })}
+                  />
+                </div>
               </Field>
             ) : (
               <>
@@ -204,6 +215,13 @@ export function NewMatchForm() {
                           onChange={(e) => updatePlayer(side, i, { name: e.target.value })}
                           placeholder={`Player ${i + 1}`}
                           aria-label="Player name"
+                        />
+                        <CardPicker
+                          name={p.name}
+                          cardId={p.cardId}
+                          sport={sport}
+                          onPick={(picked) => updatePlayer(side, i, picked)}
+                          onUnlink={() => updatePlayer(side, i, { cardId: undefined })}
                         />
                       </div>
                     ))}

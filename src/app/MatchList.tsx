@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Scoreboard, matchSubtitle } from "@/components/match-ui";
+import { ScoreCard } from "@/components/cards/ScoreCard";
 import { demoMatches } from "@/lib/demo";
-import { matchState } from "@/lib/rally/engine";
 import type { Match, MatchStatus } from "@/lib/rally/types";
 import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
 import { tieState } from "@/lib/tie/tie";
@@ -20,13 +19,9 @@ const GROUPS: { status: MatchStatus; title: string }[] = [
 ];
 
 function MatchCard({ match }: { match: Match }) {
-  const state = matchState(match);
   return (
     <li className="space-y-2">
-      <Link href={`/matches/${match.id}`} className="block">
-        <p className="mb-1.5 truncate text-xs text-muted">{matchSubtitle(match)}</p>
-        <Scoreboard match={match} state={state} compact />
-      </Link>
+      <ScoreCard match={match} />
       {match.status !== "closed" && (
         <Link
           href={`/matches/${match.id}/score`}
@@ -174,7 +169,7 @@ export function MatchList() {
         return (
           <section key={status}>
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
-            <ul className="space-y-5">
+            <ul className="space-y-4">
               {list.map((m) => (
                 <MatchCard key={m.id} match={m} />
               ))}

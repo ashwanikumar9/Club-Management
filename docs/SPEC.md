@@ -490,6 +490,23 @@ Regulations 3.7.5–3.7.7), FIVB Official Volleyball Rules 2025–2028, FIVB Eve
 - Matches inside a tie never ask "who scored" (the players are known from the line-up)
 - Volleyball stays a single team match with optional "who scored"
 
+### Player cards and score cards
+- **One player card per person**, for all sports: name, sports, club, playing hand, and a record computed from
+  every match it is linked to: played, won, win %, titles, last five results, per-sport W–L / games / points,
+  medals (tournament podiums), winning shots (from "how" + "who" details), teams and pairs played for, live
+  and upcoming matches and all results
+- **Who creates it**: an organiser (must enter the player's mobile number and / or email) or the player
+  themselves. Usernames can't own a card, since they can't prove who someone is
+- **Ownership**: whoever signs in with one of the card's numbers / emails owns it and can edit it, add more
+  contacts or hide it from search. The creator can edit it too
+- **Privacy**: the public card only shows masked hints ("+91 ••••• 43210", "r•••@gmail.com"); full contacts
+  are stored separately and readable only by whoever added them and by the player (database row-level security)
+- **Reuse**: every player field in the match, tie and tournament entry forms has a "+ Card" picker — search the
+  cards or create one inline — so the match is linked to the card; tournament entries show a 🪪 link
+- **Always accessible**: "Players" and "My card" in the header; profile pages are public links
+- **Score card**: one compact match card, identical across sports (sides, finished set scores, live score,
+  server, status, schedule or outcome), used on the home page and player profiles; the player's side is marked
+
 ## 10. Medal / Points Table
 - Medals awarded **automatically** from closed results (knockout final, league winner, athletics final)
 - **Manual medal entry**: organiser types any sport/event name and awards any medal (gold/silver/bronze or a custom medal) to any team or player
