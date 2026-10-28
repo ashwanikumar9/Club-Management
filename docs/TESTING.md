@@ -7,7 +7,8 @@ Use two devices (or one phone plus a private browser window), signed in as two d
 note anything odd with the page and what you tapped.
 
 ## 1. Sign-in
-- [ ] Sign in → enter email → code arrives → signed in; the header shows your email
+- [ ] Sign in → the box asks for your **mobile number** first
+- [ ] Until SMS is set up: tap **Can't get an SMS? Use email instead** → enter email → code arrives → signed in
 - [ ] Sign out and in again on the same phone: a new code is sent
 - [ ] A wrong code shows an error, not a crash
 
@@ -71,7 +72,14 @@ note anything odd with the page and what you tapped.
 - [ ] **Create a match** → Volleyball → **Pick a saved team** → the squad fills side A
 - [ ] Add a player whose number is already on a card (e.g. the Scorer's) → the match links to that same card
 
-## 9. General
+## 9. Email reports
+- [ ] **My card → Email reports** → enter an email → code arrives → type it → "Reports go to …", monthly ticked
+- [ ] **Email me my report now** → email with your record, results and upcoming matches; asking again within
+      10 minutes says to wait
+- [ ] On a tournament / meet you run: **Email me the tournament / meet report** → email with entries, results,
+      podium (meet: waiting / approved requests per event); a player doesn't see this button
+
+## 10. General
 - [ ] Every page works on the phone without sideways scrolling
 - [ ] Turning the phone's internet off and on: the scorer screen recovers and the score is saved
 - [ ] Refreshing any page keeps the data

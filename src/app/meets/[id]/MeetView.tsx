@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailReportButton } from "@/components/Reports";
 import Link from "next/link";
 import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
@@ -128,6 +129,8 @@ function View({ meet, tournaments, data }: { meet: Meet; tournaments: Record<str
           </ul>
         </section>
       )}
+
+      {(organiser || managed.length > 0) && <EmailReportButton kind="meet" id={meet.id} label="Email me the meet report" />}
 
       {managed.length > 0 && <Requests meet={meet} regs={regs.filter((r) => managed.some((e) => e.id === r.eventId))} user={user!} setError={setError} />}
 

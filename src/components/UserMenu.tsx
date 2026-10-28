@@ -39,7 +39,7 @@ export function UserMenu() {
           ) : (
             <>
               <p className="mb-3 text-sm text-muted">
-                {user ? "Switch to another person to try the scorer hand-over on one device:" : "Use your mobile number, email or username."}
+                {user ? "Switch to another person to try the scorer hand-over on one device:" : "Use your mobile number (or a username, in this prototype)."}
               </p>
               <IdentityForm
                 submitLabel={user ? "Switch" : "Sign in"}
@@ -74,9 +74,13 @@ export function UserMenu() {
   );
 }
 
-/** Email or mobile number → one-time code → signed in. */
+/**
+ * Mobile number → one-time code by SMS → signed in. Email sign-in stays available behind a small link until
+ * SMS codes are switched on for the database (email is otherwise only used for reports).
+ */
 function CodeSignIn({ onDone }: { onDone: () => void }) {
   const [identity, setIdentity] = useState<string | null>(null);
+  const [byEmail, setByEmail] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,11 +88,15 @@ function CodeSignIn({ onDone }: { onDone: () => void }) {
   if (!identity) {
     return (
       <>
-        <p className="mb-3 text-sm text-muted">We&rsquo;ll send a one-time code to your email or mobile number.</p>
+        <p className="mb-3 text-sm text-muted">
+          {byEmail ? "We’ll email you a one-time code." : "Your mobile number is your player ID. We’ll text you a one-time code."}
+        </p>
         <IdentityForm
+          key={byEmail ? "email" : "phone"}
           submitLabel="Send code"
           autoFocus
           allowUsername={false}
+          only={byEmail ? "email" : "phone"}
           onSubmit={(key) => {
             setBusy(true);
             setError(null);
@@ -102,6 +110,16 @@ function CodeSignIn({ onDone }: { onDone: () => void }) {
         />
         {busy && <p className="mt-2 text-sm text-muted">Sending…</p>}
         {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+        <button
+          type="button"
+          onClick={() => {
+            setByEmail(!byEmail);
+            setError(null);
+          }}
+          className="mt-4 text-xs text-muted underline"
+        >
+          {byEmail ? "Use my mobile number" : "Can’t get an SMS? Use email instead"}
+        </button>
       </>
     );
   }
@@ -137,7 +155,7 @@ function CodeSignIn({ onDone }: { onDone: () => void }) {
       </div>
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
       <button type="button" onClick={() => setIdentity(null)} className="mt-3 text-sm text-muted underline">
-        Use a different email or number
+        Use a different number
       </button>
     </form>
   );

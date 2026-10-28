@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { EditCard } from "@/components/cards/EditCard";
+import { ReportsPanel } from "@/components/Reports";
 import { PlayerCardView } from "@/components/cards/PlayerCardView";
 import { identityKind } from "@/lib/identity";
 import { myCards, type PlayerCard } from "@/lib/players/cards";
@@ -23,7 +24,7 @@ export function MyCard() {
     return (
       <div className="space-y-2 py-6 text-center">
         <h1 className="text-xl font-bold">My player card</h1>
-        <p className="text-muted">Sign in (top right) with your mobile number or email to see your card.</p>
+        <p className="text-muted">Sign in (top right) with your mobile number to see your card.</p>
       </div>
     );
   }
@@ -42,6 +43,7 @@ export function MyCard() {
           </button>
         </div>
       ))}
+      {canOwn && <ReportsPanel cards={mine.map((c) => ({ id: c.id, name: c.name }))} />}
       {editing && <EditCard card={cards[editing.id] ?? editing} mine onClose={() => setEditing(null)} />}
       {mine.length === 0 && (
         <div className="space-y-3 rounded-2xl border border-dashed border-border p-6 text-center">

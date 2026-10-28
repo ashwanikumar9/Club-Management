@@ -57,7 +57,7 @@ function Form({ meet }: { meet: Meet }) {
         {back}
         <h1 className="text-xl font-bold">Register a team</h1>
         <p className="rounded-2xl border border-border bg-surface p-4 text-sm">
-          Sign in (top right) with your mobile number or email first. The organiser uses it to reach you, and you&rsquo;ll see your
+          Sign in (top right) with your mobile number first. The organiser uses it to reach you, and you&rsquo;ll see your
           request&rsquo;s status here.
         </p>
       </div>

@@ -57,7 +57,9 @@ the **Authentication** section, or use the addresses above.
 5. New query again: paste [`supabase/migrations/20261028000000_teams.sql`](../supabase/migrations/20261028000000_teams.sql)
    and click **Run**. It adds teams, lets a player join a team through its invite link, and lets organisers
    reuse the player card already registered to a mobile number (only the card is found, never the number).
-6. Check: left sidebar → **Table Editor** lists `documents`, `player_contacts` and `registrations`.
+6. New query again: paste [`supabase/migrations/20261029000000_reports.sql`](../supabase/migrations/20261029000000_reports.sql)
+   and click **Run**. It adds email reports (see [Email reports](#email-reports) for the rest of that setup).
+7. Check: left sidebar → **Table Editor** lists `documents`, `player_contacts`, `registrations` and `report_settings`.
 
 Already set up earlier? Run only the files you haven't run yet, in date order (the date is the start of each
 file name). Running a file twice shows an error ("already exists") and changes nothing.
@@ -84,8 +86,9 @@ All of these are under **Authentication** in the left sidebar.
    If the editor is greyed out, finish the SMTP step first.
 4. **Site address**: Authentication → **URL Configuration** (address `…/auth/url-configuration`) → set
    **Site URL** to your app's address (for example `https://your-app.vercel.app`) and **Save**.
-5. Optional, **SMS codes**: Authentication → **Sign In / Providers** → **Phone**: enable it and connect an SMS
-   provider (Twilio, MessageBird, Vonage or Textlocal). SMS costs money per message; email codes are free.
+5. **SMS codes (the main way to sign in)**: the app asks for a mobile number first. Until SMS is set up, people
+   tap "Can't get an SMS? Use email instead" and sign in with an email code (steps 1–3). See
+   [Switching on SMS sign-in](#switching-on-sms-sign-in).
 
 ### Setting up Brevo (free email sender)
 
@@ -115,6 +118,47 @@ All of these are under **Authentication** in the left sidebar.
 Codes sent from a Gmail / Rediffmail address can land in spam for some people. If that happens often, buy a
 domain (e.g. `yourclub.in`, a few hundred rupees a year), add it in Brevo under **Senders, Domains &
 Dedicated IPs → Domains** and follow its DNS steps; then send from an address like `scores@yourclub.in`.
+
+### Switching on SMS sign-in
+
+1. Pick an SMS provider Supabase supports: **Twilio** (or Twilio Verify), **MessageBird**, **Vonage** or
+   **Textlocal**. Expect roughly ₹0.25–₹1 per code.
+2. For Indian numbers, SMS needs **DLT registration** (TRAI rules): register your business / club as a sender
+   on a DLT portal (e.g. Jio, Vodafone Idea or Airtel), get a 6-letter sender ID and approve a message template
+   like `Your Rally Scorer code is {#var#}`. The provider's India guide walks through it; it can take a few days.
+3. Supabase → Authentication → **Sign In / Providers** → **Phone**: enable it, choose the provider, paste its
+   account details, and set the message to the approved template with `{{ .Code }}` in place of the code.
+   **Save**.
+4. Test: sign in to the app with your mobile number. When it works for everyone, tell the developer to remove
+   the "Use email instead" link (or leave it as a backup).
+
+## Email reports
+
+Email is not used to sign in to the app (apart from the backup above): players and organisers add an
+address under **My card → Email reports**, confirm it with a code, and get:
+
+- **On request**: "Email me my report" on their player card, or "Email me the tournament / meet report" on an
+  event they run (at most once every 10 minutes);
+- **Monthly**: a summary of the past month on the 1st (they can switch it off).
+
+The app's server sends these through **Brevo's API** (same Brevo account as above). One-time setup:
+
+1. Run the reports SQL (step 2.6). Then, in a new SQL query, run `select private.report_secret();` and copy
+   the long value it shows.
+2. Brevo → top-right menu → **SMTP & API** → **API Keys** tab → **Generate a new API key**, name it
+   "Rally Scorer reports", copy it.
+3. Vercel → your project → **Settings** → **Environment Variables**. Add three, for **Production**:
+
+   | Name | Value |
+   |---|---|
+   | `BREVO_API_KEY` | the API key from step 2 |
+   | `REPORT_FROM_EMAIL` | the sender address you verified in Brevo (same as the SMTP sender) |
+   | `CRON_SECRET` | the value from step 1 |
+
+   These are secret: never put them in the code or share them.
+4. Vercel → **Deployments** → the latest one → **⋯** → **Redeploy**, so the new settings are used.
+5. Test: My card → Email reports → enter your email → type the code → **Email me my report now**.
+   The monthly job is listed under Vercel → **Settings** → **Cron Jobs** (runs on the 1st at 08:47 IST).
 
 ## 4. Connect the app
 
@@ -189,6 +233,9 @@ by `supabase start` (Mailpit, usually <http://127.0.0.1:54324>).
 | "Couldn't load data: … players" or cards don't save | Run the player cards SQL (step 2.3) |
 | Sports meets don't save, or "Couldn't load registrations" | Run the sports meets SQL (step 2.4) |
 | Teams don't save, or joining by invite link says `join_team` / `find_player` not found | Run the teams SQL (step 2.5) |
+| "Email reports aren't set up yet (missing …)" | Add that setting in Vercel and redeploy ([Email reports](#email-reports)) |
+| "Not allowed." when confirming a report email | `CRON_SECRET` in Vercel doesn't match `select private.report_secret();` |
+| Report code or report never arrives | Brevo → **Transactional** → **Logs**; check the sender is verified |
 | Nothing loads after a quiet week | The free project paused: open the Supabase dashboard and restore it |
 
 ## Current limits

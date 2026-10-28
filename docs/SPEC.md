@@ -536,6 +536,18 @@ Regulations 3.7.5–3.7.7), FIVB Official Volleyball Rules 2025–2028, FIVB Eve
   add or remove events (an event with teams or fixtures can't be removed), change admins
 - Later: email / push notifications for new requests, online fee payment, a medal tally across the meet
 
+### Sign-in and email reports
+- **Sign in with a mobile number** (one-time SMS code). The mobile number is the player's ID everywhere.
+  While SMS isn't set up for the database, a small "use email instead" link signs in with an email code
+- **Email is for reports, not sign-in**: a person adds an address on My card and confirms it with a code
+  emailed to it. Players get a detailed performance report (record, by-sport table, form, medals, winning
+  shots, recent results with scores, upcoming matches) on request and as a **monthly summary** on the 1st.
+  Organisers and event admins get a tournament report (entries, played / to play, podium, results, coming up)
+  or a sports meet report (per event: entries, waiting / approved registrations, results)
+- Reports are built and sent by the app's server (Brevo API); the database only accepts report addresses
+  from the server (shared secret), requests are limited to one per 10 minutes, and nobody can read another
+  person's report address
+
 ### Player cards and score cards
 - **One player card per person**, for all sports: name, sports, club, playing hand, and a record computed from
   every match it is linked to: played, won, win %, titles, last five results, per-sport W–L / games / points,

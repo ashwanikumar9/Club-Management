@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailReportButton } from "@/components/Reports";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { rememberVisit } from "@/lib/recent";
@@ -125,6 +126,8 @@ function View({ t, data }: { t: Tournament; data: Data }) {
           )}
         </div>
       )}
+
+      {organiser && <EmailReportButton kind="tournament" id={t.id} label="Email me the tournament report" />}
 
       {error && (
         <button type="button" onClick={() => setError(null)} className="w-full rounded-lg bg-danger/10 px-3 py-2 text-left text-sm text-danger">

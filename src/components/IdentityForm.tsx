@@ -10,6 +10,7 @@ export function IdentityForm({
   onSubmit,
   autoFocus = false,
   allowUsername = !isRemote,
+  only,
 }: {
   submitLabel: string;
   /** Usernames can't receive sign-in codes, so they are only offered in prototype mode. */
@@ -17,15 +18,21 @@ export function IdentityForm({
   /** Returns an error message to show, or null on success. */
   onSubmit: (key: string) => string | null;
   autoFocus?: boolean;
+  /** Accept just mobile numbers, or just email addresses. */
+  only?: "phone" | "email";
 }) {
   const [value, setValue] = useState("");
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [error, setError] = useState<string | null>(null);
 
   function submit() {
-    const parsed = parseIdentity(value, country, allowUsername);
+    const parsed = parseIdentity(value, country, allowUsername && !only);
     if (!parsed.ok) {
       setError(parsed.error);
+      return;
+    }
+    if (only && parsed.kind !== only) {
+      setError(only === "phone" ? "Enter your mobile number." : "Enter an email address.");
       return;
     }
     const err = onSubmit(parsed.key);
@@ -33,11 +40,14 @@ export function IdentityForm({
     if (!err) setValue("");
   }
 
+  const label = only === "phone" ? "Mobile number" : only === "email" ? "Email address" : allowUsername ? "Mobile number, email or username" : "Mobile number or email";
+
   // Not a <form>, so it can sit inside other forms (e.g. the New match form).
   return (
     <div>
       <div className="flex gap-2">
         {/* Shows just "+91" while the native list (opened on tap) shows full country names. */}
+        {only !== "email" && (
         <div className="relative w-[4.75rem] shrink-0">
           <span
             aria-hidden
@@ -58,6 +68,7 @@ export function IdentityForm({
             ))}
           </select>
         </div>
+        )}
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -67,8 +78,9 @@ export function IdentityForm({
               submit();
             }
           }}
-          placeholder={allowUsername ? "Mobile number, email or username" : "Mobile number or email"}
-          aria-label={allowUsername ? "Mobile number, email or username" : "Mobile number or email"}
+          placeholder={label}
+          aria-label={label}
+          inputMode={only === "phone" ? "tel" : only === "email" ? "email" : undefined}
           autoComplete="off"
           autoCapitalize="none"
           autoFocus={autoFocus}
@@ -77,7 +89,7 @@ export function IdentityForm({
           {submitLabel}
         </button>
       </div>
-      <p className="mt-1 text-xs text-muted">The country code is used for mobile numbers typed without “+”.</p>
+      {only !== "email" && <p className="mt-1 text-xs text-muted">The country code is used for mobile numbers typed without “+”.</p>}
       {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </div>
   );

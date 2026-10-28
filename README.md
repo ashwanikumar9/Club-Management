@@ -26,6 +26,9 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
   number, paste a list, or share an invite link that players open, sign in and join. Pick the saved team when
   entering a tournament, a meet, a team tie or a volleyball match. Every player anywhere is entered as name +
   mobile, so their results always reach their player card.
+- **Mobile sign-in and email reports**: sign in with a mobile number (email code as a backup until SMS is set
+  up). Add an email on My card to get detailed performance reports on request and every month; organisers
+  get tournament and sports meet reports.
 - **Player cards**: one card per person for every sport, created by an organiser (mobile number and / or
   email required) or by the player. Pick a card when adding someone to a match, tie or tournament and their
   results, win rate, form, titles and medals, winning shots and upcoming matches follow them. The card

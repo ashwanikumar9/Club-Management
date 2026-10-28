@@ -175,3 +175,44 @@ export function identityOf(user: { email?: string | null; phone?: string | null 
   if (user.phone) return `+${user.phone.replace(/^\+/, "")}`;
   return null;
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Email reports (sent by the app's server, see src/app/api/reports)
+
+export interface ReportSettings {
+  email: string;
+  monthly: boolean;
+}
+
+export async function loadReportSettings(): Promise<ReportSettings | null> {
+  const { data, error } = await supabase().from("report_settings").select("email,monthly").maybeSingle();
+  if (error) throw error;
+  return data as ReportSettings | null;
+}
+
+export async function setReportMonthly(wanted: boolean): Promise<void> {
+  const { error } = await supabase().rpc("set_report_monthly", { wanted });
+  if (error) throw error;
+}
+
+export async function removeReportEmail(): Promise<void> {
+  const { error } = await supabase().rpc("remove_report_email");
+  if (error) throw error;
+}
+
+/** Calls a reports route as the signed-in person. Returns the JSON body, with `error` set on failure. */
+export async function reportsApi<T>(path: string, body: unknown): Promise<T & { error?: string }> {
+  const { data } = await supabase().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return { error: "Sign in first." } as T & { error?: string };
+  try {
+    const res = await fetch(`/api/reports/${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    return (await res.json()) as T & { error?: string };
+  } catch {
+    return { error: "Couldn't reach the server. Check your connection." } as T & { error?: string };
+  }
+}

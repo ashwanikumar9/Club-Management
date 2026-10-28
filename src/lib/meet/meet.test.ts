@@ -83,7 +83,7 @@ describe("team registration", () => {
     const event = m.events[0];
     const base = { eventId: event.id, captain: CAPTAIN, teamName: "", players: [{ name: "Riya Sharma" }], formDone: false };
     expect(() => createRegistration(m, base, [])).toThrow(/form first/);
-    expect(() => createRegistration(m, { ...base, captain: "@riya", formDone: true }, [])).toThrow(/mobile number or email/);
+    expect(() => createRegistration(m, { ...base, captain: "@riya", formDone: true }, [])).toThrow(/Sign in with your mobile number/);
     const reg = createRegistration(m, { ...base, formDone: true }, []);
     expect(reg).toMatchObject({ status: "pending", teamName: "Riya Sharma" });
     expect(() => createRegistration(m, { ...base, formDone: true }, [reg])).toThrow(/already registered/);

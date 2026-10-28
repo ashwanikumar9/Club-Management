@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailReportButton } from "@/components/Reports";
 import Link from "next/link";
 import { use, useState } from "react";
 import { EditCard } from "@/components/cards/EditCard";
@@ -48,6 +49,8 @@ export function PlayerProfile({ params }: { params: Promise<{ id: string }> }) {
           {mine ? "Edit my profile" : "Edit card"}
         </button>
       )}
+
+      {mine && <EmailReportButton kind="player" id={card.id} label="Email me my performance report" />}
 
       <Matches title="Playing now" list={stats.live} />
       <Matches title="Upcoming" list={stats.upcoming} />

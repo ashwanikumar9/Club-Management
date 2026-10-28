@@ -23,7 +23,7 @@ export function createRegistration(meet: Meet, input: NewRegistrationInput, exis
   if (!meet.registration.open) throw new MutationError("Registration for this meet is closed.");
   const event = meet.events.find((e) => e.id === input.eventId);
   if (!event) throw new MutationError("Choose a sport / event to register for.");
-  if (identityKind(input.captain) === "username") throw new MutationError("Sign in with your mobile number or email to register, so the organiser can reach you.");
+  if (identityKind(input.captain) === "username") throw new MutationError("Sign in with your mobile number to register, so the organiser can reach you.");
   if (formFor(meet, event) && !input.formDone) throw new MutationError("Fill in the organiser's form first, then tick the box.");
   const players = input.players.map((p) => ({ name: p.name.trim(), cardId: p.cardId || undefined })).filter((p) => p.name);
   const [min, max] = PLAYERS[event.format];
