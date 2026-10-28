@@ -58,7 +58,18 @@ note anything odd with the page and what you tapped.
 - [ ] Captain sees **Approved** / **Rejected** (with the reason) on the meet page
 - [ ] Home page: the meet shows under **Your events**; set your city → it shows under **Near you** for others
 
-## 8. General
+## 8. Teams
+- [ ] ☰ → **Create a team** → Volleyball, name, city → **Create team**
+- [ ] **+ Add players**: a player without a mobile number shows an error; with numbers they're added (jersey optional)
+- [ ] **Paste a list** with lines like `Dev Singh, 98765 43210` → all added; a line without a number is pointed out
+- [ ] Tap **⋯** on a player → **Make captain** → **C** badge and "Captain …" in the header
+- [ ] Copy / WhatsApp the **invite link** → on another phone, sign in with a mobile → open the link → enter your
+      name → **Join** → you're in the squad; the captain's phone shows you without reloading
+- [ ] Not signed in: the team page shows the squad but no buttons; **New link** makes the old link say "no longer valid"
+- [ ] **Create a match** → Volleyball → **Pick a saved team** → the squad fills side A
+- [ ] Add a player whose number is already on a card (e.g. the Scorer's) → the match links to that same card
+
+## 9. General
 - [ ] Every page works on the phone without sideways scrolling
 - [ ] Turning the phone's internet off and on: the scorer screen recovers and the score is saved
 - [ ] Refreshing any page keeps the data

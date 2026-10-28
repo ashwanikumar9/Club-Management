@@ -17,6 +17,9 @@ export interface PlayerDraft {
 
 export const emptyPlayer = (): PlayerDraft => ({ name: "", phone: "", country: DEFAULT_COUNTRY });
 
+/** A draft for a player who already has a card, e.g. from a saved team's squad. */
+export const cardPlayer = (p: { cardId: string; name: string; jersey?: string }): PlayerDraft => ({ ...emptyPlayer(), name: p.name, jersey: p.jersey, cardId: p.cardId });
+
 export const isBlank = (p: PlayerDraft) => !p.name.trim() && !p.phone.trim() && !p.cardId;
 
 /**
@@ -94,15 +97,44 @@ export function PlayerInput({
 }
 
 /**
- * Checks the drafts (skipping blank rows) and turns them into player cards. Returns the players, or an error
- * message naming the row to fix.
+ * Player cards for pasted lists (e.g. tournament entries): every player needs the mobile number or email written
+ * after their name. Returns the lists with card ids, or the problems to fix (nothing is saved then).
  */
-export async function resolvePlayers(
-  drafts: { draft: PlayerDraft; label: string }[],
+export async function resolveListed(
+  lists: { name: string; jersey?: string; contact?: string; cardId?: string }[][],
   by: string,
-  sport?: SportKey,
-): Promise<{ players: { cardId: string; name: string; jersey?: string }[] } | { error: string }> {
-  const rows: { name: string; contact: string; jersey?: string; cardId?: string }[] = [];
+  sport: SportKey | undefined,
+  country = DEFAULT_COUNTRY,
+): Promise<{ lists: { cardId: string; name: string; jersey?: string }[][] } | { errors: string[] }> {
+  const errors: string[] = [];
+  const rows: { name: string; contact: string; jersey?: string }[] = [];
+  for (const p of lists.flat()) {
+    if (p.cardId) continue;
+    if (!p.contact) {
+      errors.push(`${p.name}: add their mobile number after the name.`);
+      continue;
+    }
+    const parsed = parseIdentity(p.contact, country, false);
+    if (parsed.ok) rows.push({ name: p.name, contact: parsed.key, jersey: p.jersey });
+    else errors.push(`${p.name}: ${parsed.error}`);
+  }
+  if (errors.length) return { errors };
+  try {
+    const made = await ensureCards(rows, by, sport);
+    let k = 0;
+    return {
+      lists: lists.map((list) => list.map((p) => (p.cardId ? { cardId: p.cardId, name: p.name, jersey: p.jersey } : { ...made[k++], jersey: p.jersey }))),
+    };
+  } catch (e) {
+    return { errors: [`Couldn't save the players: ${e instanceof Error ? e.message : String(e)}`] };
+  }
+}
+
+type Row = { name: string; contact: string; jersey?: string; cardId?: string };
+
+/** Checks the drafts (skipping blank rows): rows ready for `ensureCards`, or an error naming the row to fix. */
+export function checkPlayers(drafts: { draft: PlayerDraft; label: string }[]): { rows: Row[] } | { error: string } {
+  const rows: Row[] = [];
   for (const { draft, label } of drafts) {
     if (isBlank(draft)) continue;
     if (!draft.name.trim()) return { error: `Enter the name for ${label}.` };
@@ -115,6 +147,21 @@ export async function resolvePlayers(
     if (!parsed.ok) return { error: `${draft.name.trim()}: ${parsed.error}` };
     rows.push({ name: draft.name, contact: parsed.key, jersey: draft.jersey });
   }
+  return { rows };
+}
+
+/**
+ * Checks the drafts and turns them into player cards (the card registered to each mobile, or a new one).
+ * Returns the players, or an error message naming the row to fix.
+ */
+export async function resolvePlayers(
+  drafts: { draft: PlayerDraft; label: string }[],
+  by: string,
+  sport?: SportKey,
+): Promise<{ players: { cardId: string; name: string; jersey?: string }[] } | { error: string }> {
+  const checked = checkPlayers(drafts);
+  if ("error" in checked) return checked;
+  const { rows } = checked;
   try {
     const made = await ensureCards(
       rows.filter((r) => !r.cardId),

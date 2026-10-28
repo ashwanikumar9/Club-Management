@@ -112,7 +112,7 @@ function requireSetup(t: Tournament) {
   if (t.phase !== "setup") throw new MutationError("Fixtures have been generated; entries and groups are locked.");
 }
 
-export function addEntry(t: Tournament, by: string, name: string, players: EntryPlayer[]): Tournament {
+export function addEntry(t: Tournament, by: string, name: string, players: EntryPlayer[], teamId?: string): Tournament {
   requireOrganiser(t, by);
   requireSetup(t);
   const clean = players
@@ -124,7 +124,8 @@ export function addEntry(t: Tournament, by: string, name: string, players: Entry
     throw new MutationError(`${entryName} is already in the tournament.`);
   }
   if (t.format === "doubles" && clean.length !== 2) throw new MutationError("A doubles pair needs two players.");
-  return { ...t, entries: [...t.entries, { id: newId(), name: entryName, players: clean }] };
+  if (teamId && t.entries.some((e) => e.teamId === teamId)) throw new MutationError(`${entryName} is already in the tournament.`);
+  return { ...t, entries: [...t.entries, { id: newId(), name: entryName, players: clean, ...(teamId ? { teamId } : {}) }] };
 }
 
 export function removeEntry(t: Tournament, by: string, entryId: string): Tournament {

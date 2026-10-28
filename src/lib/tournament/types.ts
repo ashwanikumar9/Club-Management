@@ -17,6 +17,8 @@ export interface Entry {
   id: string;
   name: string;
   players: EntryPlayer[];
+  /** The saved team this entry was picked from (team events). */
+  teamId?: string;
   /** 1 = top seed. Unseeded entries are placed after all seeded ones. */
   seed?: number;
 }

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { rememberVisit } from "@/lib/recent";
 import { IdentityForm } from "@/components/IdentityForm";
-import { CardPicker } from "@/components/cards/CardPicker";
+import { cardPlayer, emptyPlayer, PlayerInput, resolveListed, resolvePlayers, type PlayerDraft } from "@/components/PlayerInput";
+import { TeamPicker } from "@/components/TeamBits";
 import { Bracket, PointsTable, entryName } from "@/components/tournament/parts";
 import { ScheduleTab } from "@/components/tournament/ScheduleTab";
 import { AddMatch, EditFixtureSheet, FixtureList, RoundsTab } from "@/components/tournament/RoundsTab";
@@ -281,7 +282,7 @@ function EntriesTab({
 }: {
   t: Tournament;
   organiser: boolean;
-  edit: (mutate: (x: Tournament) => Tournament) => void;
+  edit: (mutate: (x: Tournament) => Tournament) => string | null;
   user: string;
 }) {
   const setup = t.phase === "setup";
@@ -412,18 +413,37 @@ function EntriesTab({
 function BulkEntries({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tournament) => Tournament) => string | null | void; user: string }) {
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
   const example =
     t.format === "singles"
-      ? "Riya Sharma | 1\nAsha Verma | 2\nMeera Iyer"
+      ? "Riya Sharma 98765 43210 | 1\nAsha Verma 91234 56789 | 2\nMeera Iyer meera@mail.com"
       : t.format === "doubles"
-        ? "Meera / Karan | 1\nSmashers: Sana / Rahul"
-        : "Eagles: #7 Kiran, #10 Arjun, Vikram | 1\nHawks: Dev, Nikhil, Aman";
+        ? "Meera 98765 43210 / Karan 91234 56789 | 1\nSmashers: Sana 99887 76655 / Rahul 90000 11111"
+        : "Eagles: #7 Kiran 98765 43210, #10 Arjun 91234 56789 | 1\nHawks: Dev 99887 76655, Nikhil 90000 11111";
+
+  async function addAll() {
+    const parsed = parseBulkEntries(t.format, text);
+    setErrors(parsed.errors);
+    if (parsed.errors.length || parsed.entries.length === 0) return;
+    setBusy(true);
+    const r = await resolveListed(
+      parsed.entries.map((e) => e.players),
+      user,
+      t.sport,
+    );
+    setBusy(false);
+    if ("errors" in r) return setErrors(r.errors);
+    const err = edit((x) => addEntries(x, user, parsed.entries.map((e, i) => ({ ...e, players: r.lists[i] }))));
+    if (err) setErrors([err]);
+    else setText("");
+  }
+
   return (
     <details className="rounded-2xl border border-dashed border-border p-4">
       <summary className="cursor-pointer font-semibold">Paste a list</summary>
       <p className="mt-1 text-xs text-muted">
-        One {t.format === "singles" ? "player" : t.format === "doubles" ? "pair" : "team"} per line; add &ldquo;| 1&rdquo; at the end for a seed.
-        Rows copied from a spreadsheet work too.
+        One {t.format === "singles" ? "player" : t.format === "doubles" ? "pair" : "team"} per line, each player&rsquo;s mobile number after their
+        name; add &ldquo;| 1&rdquo; at the end for a seed. Rows copied from a spreadsheet work too.
       </p>
       <textarea rows={5} value={text} onChange={(e) => setText(e.target.value)} placeholder={example} aria-label="Entries list" className="mt-2 font-mono text-sm" />
       {errors.length > 0 && (
@@ -433,36 +453,40 @@ function BulkEntries({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tour
           ))}
         </ul>
       )}
-      <button
-        type="button"
-        onClick={() => {
-          const parsed = parseBulkEntries(t.format, text);
-          setErrors(parsed.errors);
-          if (parsed.errors.length || parsed.entries.length === 0) return;
-          const err = edit((x) => addEntries(x, user, parsed.entries));
-          if (err) setErrors([err]);
-          else setText("");
-        }}
-        className="mt-2 w-full rounded-xl border border-border py-2.5 font-semibold"
-      >
-        Add all
+      <button type="button" disabled={busy} onClick={() => void addAll()} className="mt-2 w-full rounded-xl border border-border py-2.5 font-semibold disabled:opacity-60">
+        {busy ? "Saving players…" : "Add all"}
       </button>
     </details>
   );
 }
 
-function AddEntryForm({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tournament) => Tournament) => void; user: string }) {
+function AddEntryForm({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tournament) => Tournament) => string | null; user: string }) {
   const size = t.format === "singles" ? 1 : t.format === "doubles" ? 2 : 6;
-  const empty = () => Array.from({ length: size }, (): { name: string; jersey: string; cardId?: string } => ({ name: "", jersey: "" }));
+  const empty = () => Array.from({ length: size }, emptyPlayer);
   const [name, setName] = useState("");
-  const [players, setPlayers] = useState(empty);
+  const [players, setPlayers] = useState<PlayerDraft[]>(empty);
+  const [teamId, setTeamId] = useState<string | undefined>();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const label = t.format === "singles" ? "player" : t.format === "doubles" ? "pair" : "team";
 
-  function add() {
-    const entryName = t.format === "singles" ? players[0].name : name;
-    edit((x) => addEntry(x, user, entryName, players));
+  async function add() {
+    setBusy(true);
+    const r = await resolvePlayers(
+      players.map((draft, i) => ({ draft, label: t.format === "singles" ? "the player" : `player ${i + 1}` })),
+      user,
+      t.sport,
+    );
+    setBusy(false);
+    if ("error" in r) return setError(r.error);
+    if (t.format === "singles" && r.players.length === 0) return setError("Enter the player's name and mobile number.");
+    const entryName = t.format === "singles" ? r.players[0].name : name;
+    const err = edit((x) => addEntry(x, user, entryName, r.players, teamId));
+    setError(err);
+    if (err) return;
     setName("");
     setPlayers(empty());
+    setTeamId(undefined);
   }
 
   return (
@@ -470,51 +494,49 @@ function AddEntryForm({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tou
       className="space-y-2 rounded-2xl border border-dashed border-border p-4"
       onSubmit={(e) => {
         e.preventDefault();
-        add();
+        void add();
       }}
     >
       <h2 className="font-semibold">Add a {label}</h2>
+      {t.format === "team" && (
+        <TeamPicker
+          sport={t.sport}
+          onPick={(team) => {
+            setTeamId(team.id);
+            setName(team.name);
+            if (team.players.length) setPlayers(team.players.map(cardPlayer));
+          }}
+        />
+      )}
       {t.format !== "singles" && (
         <input
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setTeamId(undefined);
+          }}
           placeholder={t.format === "doubles" ? "Pair name (optional)" : "Team name"}
           aria-label={`${label} name`}
         />
       )}
       {players.map((p, i) => (
-        <div key={i} className="flex gap-2">
-          {t.format === "team" && (
-            <input
-              className="!w-16 shrink-0"
-              value={p.jersey}
-              onChange={(e) => setPlayers(players.map((x, j) => (j === i ? { ...x, jersey: e.target.value } : x)))}
-              placeholder="#"
-              aria-label="Jersey number"
-            />
-          )}
-          <input
-            value={p.name}
-            onChange={(e) => setPlayers(players.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-            placeholder={t.format === "singles" ? "Player name" : `Player ${i + 1}${t.format === "team" ? " (optional)" : ""}`}
-            aria-label={t.format === "singles" ? "Player name" : `Player ${i + 1}`}
-          />
-          <CardPicker
-            name={p.name}
-            cardId={p.cardId}
-            sport={t.sport}
-            onPick={(picked) => setPlayers(players.map((x, j) => (j === i ? { ...x, ...picked } : x)))}
-            onUnlink={() => setPlayers(players.map((x, j) => (j === i ? { ...x, cardId: undefined } : x)))}
-          />
-        </div>
+        <PlayerInput
+          key={i}
+          value={p}
+          onChange={(next) => setPlayers(players.map((x, j) => (j === i ? next : x)))}
+          label={t.format === "singles" ? "Player" : `Player ${i + 1}`}
+          sport={t.sport}
+          jersey={t.format === "team"}
+        />
       ))}
       {t.format === "team" && (
-        <button type="button" onClick={() => setPlayers([...players, { name: "", jersey: "" }])} className="text-sm font-medium text-side-a">
+        <button type="button" onClick={() => setPlayers([...players, emptyPlayer()])} className="text-sm font-medium text-side-a">
           + Add player
         </button>
       )}
-      <button type="submit" className="btn-grad w-full rounded-xl py-2.5 font-semibold">
-        Add {label}
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <button type="submit" disabled={busy} className="btn-grad w-full rounded-xl py-2.5 font-semibold disabled:opacity-60">
+        {busy ? "Saving players…" : `Add ${label}`}
       </button>
     </form>
   );

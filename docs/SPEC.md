@@ -362,6 +362,22 @@ Organiser names any sport, picks a family, and builds its configuration and acti
   (so one player can appear in several sports)
 - Rosters (player names, jersey numbers) are maintained per team per sport
 
+### Saved teams (CricHeroes-style)
+- A **team** lasts beyond one event: name, sport (one per team), city, squad, captain, admins. Name + city must
+  be unique per sport. Whoever creates it manages it and can add other admins (by mobile / email)
+- **Every player is name + mobile number** (or email), everywhere: teams, single matches, ties, tournament
+  entries and meet registrations. The mobile is the player's unique ID: it finds the player card already
+  registered to that number (made by anyone) or creates one, which becomes the player's when they sign in with
+  it. Numbers are stored only in the private contacts table, never in the public team / match / tournament
+- Adding players: one by one (name, mobile, jersey), **paste a list** ("Name, mobile" per line, or two
+  spreadsheet columns), pick an existing card, or share the **invite link**: a player opens it, signs in with
+  their mobile and joins at once (no approval). **New link** stops the old one working
+- Squad: jersey numbers, captain (C), remove; tap a name for the player card
+- **Pick a saved team** in a volleyball match, a team tie, a team tournament entry or a meet registration; the
+  squad fills in. Tournament entries remember the team, so the same team can't enter twice. A captain
+  registering for a meet can create the team right there; players they add join the team too
+- Viewers need no login: team pages are public links; only joining or managing needs sign-in
+
 ### Organisations (for the overall medal tally)
 - Optionally, the organiser creates **organisations** in the event (e.g. colleges, schools, houses,
   companies, clubs) and links any team or player to one
@@ -531,8 +547,9 @@ Regulations 3.7.5–3.7.7), FIVB Official Volleyball Rules 2025–2028, FIVB Eve
   contacts or hide it from search. The creator can edit it too
 - **Privacy**: the public card only shows masked hints ("+91 ••••• 43210", "r•••@gmail.com"); full contacts
   are stored separately and readable only by whoever added them and by the player (database row-level security)
-- **Reuse**: every player field in the match, tie and tournament entry forms has a "+ Card" picker — search the
-  cards or create one inline — so the match is linked to the card; tournament entries show a 🪪 link
+- **Reuse**: every player field asks for name + mobile number, which links the player's card automatically; a
+  "+ Card" picker also searches existing cards. Pasted lists take the number after each name
+  ("Riya 98765 43210 / Karan 91234 56789 | 1"); tournament entries show a 🪪 link
 - **Always accessible**: "Players" and "My card" in the header; profile pages are public links
 - **Score card**: one compact match card, identical across sports (sides, finished set scores, live score,
   server, status, schedule or outcome), used on the home page and player profiles; the player's side is marked

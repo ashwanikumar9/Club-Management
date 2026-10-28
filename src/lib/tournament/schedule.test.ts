@@ -121,6 +121,27 @@ describe("bulk entries", () => {
     expect(parseBulkEntries("team", "Kiran, Arjun").errors[0]).toMatch(/team name/);
   });
 
+  it("reads each player's mobile number or email after their name", () => {
+    expect(parseBulkEntries("singles", "Riya Sharma, 98765 43210 | 1").entries[0]).toEqual({
+      name: "Riya Sharma",
+      players: [{ name: "Riya Sharma", contact: "98765 43210" }],
+      seed: 1,
+    });
+    expect(parseBulkEntries("doubles", "Meera +91 98765 43210 / Karan karan@x.in").entries[0]).toEqual({
+      name: "Meera / Karan",
+      players: [
+        { name: "Meera", contact: "+91 98765 43210" },
+        { name: "Karan", contact: "karan@x.in" },
+      ],
+      seed: undefined,
+    });
+    expect(parseBulkEntries("team", "Eagles: #7 Kiran 9876543210, Arjun").entries[0].players).toEqual([
+      { jersey: "7", name: "Kiran", contact: "9876543210" },
+      { name: "Arjun" },
+    ]);
+    expect(parseBulkEntries("singles", "Asha\t9123456789").entries[0].players).toEqual([{ name: "Asha", contact: "9123456789" }]);
+  });
+
   it("reads spreadsheet rows (tab separated)", () => {
     expect(parseBulkEntries("team", "Eagles\tKiran\tArjun").entries[0]).toMatchObject({ name: "Eagles", players: [{ name: "Kiran" }, { name: "Arjun" }] });
   });

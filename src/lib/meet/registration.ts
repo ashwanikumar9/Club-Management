@@ -10,6 +10,7 @@ export interface NewRegistrationInput {
   captain: string;
   teamName: string;
   players: { name: string; cardId?: string }[];
+  teamId?: string;
   contact?: string;
   note?: string;
   formDone: boolean;
@@ -41,6 +42,7 @@ export function createRegistration(meet: Meet, input: NewRegistrationInput, exis
     captain: input.captain,
     teamName,
     players,
+    ...(input.teamId ? { teamId: input.teamId } : {}),
     contact: input.contact?.trim() || undefined,
     note: input.note?.trim() || undefined,
     formDone: input.formDone,
@@ -66,7 +68,7 @@ export function approveRegistration(meet: Meet, reg: Registration, tournament: T
     throw new MutationError(`Fixtures for ${event.name} are already generated, so new teams can't join. Edit the fixtures to make room first.`);
   }
   const players = reg.players.map((p) => ({ name: p.name, cardId: p.cardId }));
-  const next = addEntry(tournament, by, reg.teamName, players);
+  const next = addEntry(tournament, by, reg.teamName, players, reg.teamId);
   const entry = next.entries[next.entries.length - 1];
   return {
     registration: { ...reg, status: "approved", entryId: entry.id, decidedBy: by, decidedAt: new Date().toISOString(), reason: undefined },

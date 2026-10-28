@@ -3,13 +3,15 @@
 import { SPORT_ICON } from "@/lib/rally/sports";
 import Link from "next/link";
 import { use, useState } from "react";
-import { CardPicker } from "@/components/cards/CardPicker";
+import { cardPlayer, checkPlayers, emptyPlayer, PlayerInput, resolvePlayers, type PlayerDraft } from "@/components/PlayerInput";
+import { TeamPicker } from "@/components/TeamBits";
 import { identityKind } from "@/lib/identity";
 import { formFor } from "@/lib/meet/meet";
 import { createRegistration } from "@/lib/meet/registration";
 import type { Meet, MeetEvent, Registration } from "@/lib/meet/types";
 import { MutationError } from "@/lib/rally/mutations";
-import { sendRegistration, useMeet, useRegistrations, useUser } from "@/lib/store";
+import { sendRegistration, updateTeam, useMeet, useRegistrations, useUser } from "@/lib/store";
+import { addMembers, canManageTeam, type Team } from "@/lib/teams/teams";
 
 export function RegisterForm({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -17,11 +19,6 @@ export function RegisterForm({ params }: { params: Promise<{ id: string }> }) {
   if (meet === undefined) return <p className="py-10 text-center text-muted">Loading…</p>;
   if (meet === null) return <p className="py-10 text-center text-muted">This sports meet does not exist.</p>;
   return <Form meet={meet} />;
-}
-
-interface Row {
-  name: string;
-  cardId?: string;
 }
 
 const START_ROWS = { singles: 1, doubles: 2, team: 6 } as const;
@@ -32,7 +29,8 @@ function Form({ meet }: { meet: Meet }) {
   const [event, setEvent] = useState<MeetEvent | null>(meet.events.length === 1 ? meet.events[0] : null);
   const [formDone, setFormDone] = useState(false);
   const [teamName, setTeamName] = useState("");
-  const [rows, setRows] = useState<Row[]>(Array.from({ length: event ? START_ROWS[event.format] : 1 }, () => ({ name: "" })));
+  const [rows, setRows] = useState<PlayerDraft[]>(Array.from({ length: event ? START_ROWS[event.format] : 1 }, emptyPlayer));
+  const [team, setTeam] = useState<Team | null>(null);
   const [contact, setContact] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -89,20 +87,33 @@ function Form({ meet }: { meet: Meet }) {
   function choose(e: MeetEvent) {
     setEvent(e);
     setFormDone(false);
-    setRows(Array.from({ length: START_ROWS[e.format] }, () => ({ name: "" })));
+    setRows(Array.from({ length: START_ROWS[e.format] }, emptyPlayer));
+    setTeam(null);
     setError(null);
   }
 
   async function submit() {
-    if (!event) return;
-    let reg: Registration;
+    if (!event || busy) return;
+    const drafts = rows.map((draft, i) => ({ draft, label: `player ${i + 1}` }));
+    const checked = checkPlayers(drafts);
+    if ("error" in checked) return setError(checked.error);
+    const input = { eventId: event.id, captain: user!, teamName, teamId: team?.id, contact, note, formDone };
     try {
-      reg = createRegistration(meet, { eventId: event.id, captain: user!, teamName, players: rows, contact, note, formDone }, existing);
+      // Checks everything else before any player card is made.
+      createRegistration(meet, { ...input, players: checked.rows }, existing);
     } catch (e) {
       if (e instanceof MutationError) return setError(e.message);
       throw e;
     }
     setBusy(true);
+    const resolved = await resolvePlayers(drafts, user!, event.sport);
+    if ("error" in resolved) {
+      setBusy(false);
+      return setError(resolved.error);
+    }
+    const reg = createRegistration(meet, { ...input, players: resolved.players }, existing);
+    // Players added here also join the saved team, when the captain runs it.
+    if (team && canManageTeam(team, user)) updateTeam(team.id, (t) => addMembers(t, user!, resolved.players));
     const err = await sendRegistration(reg);
     setBusy(false);
     if (err) setError(err);
@@ -153,33 +164,37 @@ function Form({ meet }: { meet: Meet }) {
       {event && (!form || formDone) && (
         <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
           <h2 className="font-semibold">{form ? "3" : "2"}. Your {event.format === "singles" ? "entry" : event.format === "doubles" ? "pair" : "team"}</h2>
+          {event.format === "team" && (
+            <TeamPicker
+              sport={event.sport}
+              label={team ? `Team: ${team.name} (change)` : "Pick your team, or create it"}
+              onPick={(t) => {
+                setTeam(t);
+                setTeamName(t.name);
+                if (t.players.length) setRows(t.players.map(cardPlayer));
+              }}
+            />
+          )}
           {event.format !== "singles" && (
             <label className="block">
               <span className="mb-1 block text-sm font-medium">{event.format === "doubles" ? "Pair name (optional)" : "Team name"}</span>
-              <input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder={event.format === "doubles" ? "e.g. Meera / Karan" : "e.g. Smashers BC"} />
+              <input
+                value={teamName}
+                onChange={(e) => {
+                  setTeamName(e.target.value);
+                  setTeam(null);
+                }}
+                placeholder={event.format === "doubles" ? "e.g. Meera / Karan" : "e.g. Smashers BC"}
+              />
             </label>
           )}
           <div className="space-y-2">
             <span className="block text-sm font-medium">{event.format === "singles" ? "Player" : "Players"}</span>
             {rows.map((r, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  value={r.name}
-                  onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                  placeholder={`Player ${i + 1}`}
-                  aria-label={`Player ${i + 1}`}
-                />
-                <CardPicker
-                  name={r.name}
-                  cardId={r.cardId}
-                  sport={event.sport}
-                  onPick={(p) => setRows(rows.map((x, j) => (j === i ? p : x)))}
-                  onUnlink={() => setRows(rows.map((x, j) => (j === i ? { name: x.name } : x)))}
-                />
-              </div>
+              <PlayerInput key={i} value={r} onChange={(next) => setRows(rows.map((x, j) => (j === i ? next : x)))} label={`Player ${i + 1}`} sport={event.sport} />
             ))}
             {event.format === "team" && (
-              <button type="button" onClick={() => setRows([...rows, { name: "" }])} className="text-sm font-medium text-side-a">
+              <button type="button" onClick={() => setRows([...rows, emptyPlayer()])} className="text-sm font-medium text-side-a">
                 + Add player
               </button>
             )}
@@ -194,8 +209,8 @@ function Form({ meet }: { meet: Meet }) {
             <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Fee paid by UPI, ref 1234" />
           </label>
           {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-          <button type="button" disabled={busy} onClick={submit} className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-50">
-            Send registration request
+          <button type="button" disabled={busy} onClick={() => void submit()} className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-50">
+            {busy ? "Sending…" : "Send registration request"}
           </button>
         </section>
       )}

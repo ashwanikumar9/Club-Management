@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
+import { cardPlayer, checkPlayers, emptyPlayer, PlayerInput, resolvePlayers, type PlayerDraft } from "@/components/PlayerInput";
 import { RulesFields } from "@/components/RulesFields";
+import { TeamPicker } from "@/components/TeamBits";
 import { ActionBar, StepHeader } from "@/components/Wizard";
-import { CardPicker } from "@/components/cards/CardPicker";
 import { IDENTITY_ICON, identityKind } from "@/lib/identity";
 import { createMatch } from "@/lib/rally/mutations";
 import { validateRules } from "@/lib/rally/rules";
@@ -14,21 +15,15 @@ import { FORMAT_LABELS, SPORT_ICON, SPORT_LIST, SPORTS } from "@/lib/rally/sport
 import type { MatchFormat, RallyRules, SideKey, SportKey } from "@/lib/rally/types";
 import { saveMatch, useUser } from "@/lib/store";
 
-interface PlayerRow {
-  name: string;
-  jersey: string;
-  cardId?: string;
-}
-
 interface SideForm {
   name: string;
-  players: PlayerRow[];
+  players: PlayerDraft[];
 }
 
 const playerCount: Record<MatchFormat, number> = { singles: 1, doubles: 2, team: 6 };
 
 function emptySide(format: MatchFormat): SideForm {
-  return { name: "", players: Array.from({ length: playerCount[format] }, () => ({ name: "", jersey: "" })) };
+  return { name: "", players: Array.from({ length: playerCount[format] }, emptyPlayer) };
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -55,6 +50,7 @@ export function NewMatchForm() {
   const [scorers, setScorers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [busy, setBusy] = useState(false);
   const user = useUser();
 
   const config = SPORTS[sport];
@@ -71,7 +67,7 @@ export function NewMatchForm() {
     setSides((prev) => {
       const resize = (side: SideForm): SideForm => {
         const players = side.players.slice(0, Math.max(playerCount[next], next === "team" ? side.players.length : 0));
-        while (players.length < playerCount[next]) players.push({ name: "", jersey: "" });
+        while (players.length < playerCount[next]) players.push(emptyPlayer());
         return { ...side, players };
       };
       return { A: resize(prev.A), B: resize(prev.B) };
@@ -82,24 +78,40 @@ export function NewMatchForm() {
     setSides((prev) => ({ ...prev, [side]: { ...prev[side], ...change } }));
   }
 
-  function updatePlayer(side: SideKey, index: number, change: Partial<PlayerRow>) {
-    const players = sides[side].players.map((p, i) => (i === index ? { ...p, ...change } : p));
-    updateSide(side, { players });
+  function updatePlayer(side: SideKey, index: number, next: PlayerDraft) {
+    updateSide(side, { players: sides[side].players.map((p, i) => (i === index ? next : p)) });
   }
 
-  function submit() {
-    const names = (side: SideKey) => (format === "singles" ? sides[side].players[0].name.trim() : sides[side].name.trim());
-    if (!names("A") || !names("B")) {
-      setError(format === "singles" ? "Enter both players' names." : "Enter both team names.");
-      return;
-    }
+  const drafts = (side: SideKey) =>
+    sides[side].players.map((draft, i) => ({ draft, label: format === "singles" ? `Side ${side}'s player` : `Side ${side} player ${i + 1}` }));
+
+  async function submit() {
+    if (!user || busy) return;
     const invalidRules = validateRules(rules);
-    if (invalidRules) {
-      setError(invalidRules);
-      return;
+    if (invalidRules) return setError(invalidRules);
+    // Check both sides before any player card is made.
+    for (const side of ["A", "B"] as const) {
+      const checked = checkPlayers(drafts(side));
+      if ("error" in checked) return setError(checked.error);
+      if (format !== "team" && checked.rows.length < playerCount[format])
+        return setError(format === "singles" ? "Enter both players' name and mobile number." : `Enter both players of side ${side}.`);
+      if (format === "team" && !sides[side].name.trim()) return setError("Enter both team names.");
     }
-    const sideInput = (side: SideKey) => ({ name: names(side), players: sides[side].players });
-    if (!user) return;
+    setBusy(true);
+    const players: Partial<Record<SideKey, { cardId: string; name: string; jersey?: string }[]>> = {};
+    for (const side of ["A", "B"] as const) {
+      const r = await resolvePlayers(drafts(side), user, sport);
+      if ("error" in r) {
+        setBusy(false);
+        return setError(r.error);
+      }
+      players[side] = r.players;
+    }
+    const sideInput = (side: SideKey) => {
+      const list = players[side]!;
+      const name = format === "singles" ? list[0].name : sides[side].name.trim() || list.map((p) => p.name.split(" ")[0]).join(" / ");
+      return { name, players: list };
+    };
     const match = createMatch({
       sport,
       title,
@@ -131,7 +143,7 @@ export function NewMatchForm() {
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (step === 3) submit();
+        if (step === 3) void submit();
       }}
     >
       <StepHeader
@@ -213,70 +225,37 @@ export function NewMatchForm() {
               <div key={side} className="space-y-3 rounded-2xl border border-border bg-surface p-4">
                 <div className={`text-sm font-bold ${side === "A" ? "text-side-a" : "text-side-b"}`}>Side {side}</div>
                 {format === "singles" ? (
-                  <Field label="Player name">
-                    <div className="flex gap-2">
-                      <input
-                        value={sides[side].players[0]?.name ?? ""}
-                        onChange={(e) => updatePlayer(side, 0, { name: e.target.value })}
-                        placeholder={side === "A" ? "e.g. Riya Sharma" : "e.g. Asha Verma"}
-                      />
-                      <CardPicker
-                        name={sides[side].players[0]?.name ?? ""}
-                        cardId={sides[side].players[0]?.cardId}
-                        sport={sport}
-                        onPick={(p) => updatePlayer(side, 0, p)}
-                        onUnlink={() => updatePlayer(side, 0, { cardId: undefined })}
-                      />
-                    </div>
-                  </Field>
+                  <PlayerInput value={sides[side].players[0]} onChange={(next) => updatePlayer(side, 0, next)} label={`Side ${side} player`} sport={sport} />
                 ) : (
                   <>
-                    <Field label={format === "doubles" ? "Pair name" : "Team name"}>
+                    {format === "team" && <TeamPicker sport={sport} onPick={(t) => updateSide(side, { name: t.name, players: t.players.length ? t.players.map(cardPlayer) : sides[side].players })} />}
+                    <Field label={format === "doubles" ? "Pair name (optional)" : "Team name"}>
                       <input
                         value={sides[side].name}
                         onChange={(e) => updateSide(side, { name: e.target.value })}
                         placeholder={format === "doubles" ? "e.g. Meera / Karan" : "e.g. Eagles"}
                       />
                     </Field>
-                    <div>
-                      <span className="mb-1 block text-sm font-medium">Players</span>
-                      <div className="space-y-2">
-                        {sides[side].players.map((p, i) => (
-                          <div key={i} className="flex gap-2">
-                            <input
-                              className="!w-16 shrink-0"
-                              value={p.jersey}
-                              onChange={(e) => updatePlayer(side, i, { jersey: e.target.value })}
-                              placeholder="#"
-                              aria-label="Jersey number"
-                              inputMode="numeric"
-                            />
-                            <input
-                              value={p.name}
-                              onChange={(e) => updatePlayer(side, i, { name: e.target.value })}
-                              placeholder={`Player ${i + 1}`}
-                              aria-label="Player name"
-                            />
-                            <CardPicker
-                              name={p.name}
-                              cardId={p.cardId}
-                              sport={sport}
-                              onPick={(picked) => updatePlayer(side, i, picked)}
-                              onUnlink={() => updatePlayer(side, i, { cardId: undefined })}
-                            />
-                          </div>
-                        ))}
-                      </div>
+                    <div className="space-y-2">
+                      {sides[side].players.map((p, i) => (
+                        <PlayerInput
+                          key={i}
+                          value={p}
+                          onChange={(next) => updatePlayer(side, i, next)}
+                          label={`Side ${side} player ${i + 1}`}
+                          sport={sport}
+                          jersey={format === "team"}
+                        />
+                      ))}
                       {format === "team" && (
                         <button
                           type="button"
-                          className="mt-2 text-sm font-medium text-side-a"
-                          onClick={() => updateSide(side, { players: [...sides[side].players, { name: "", jersey: "" }] })}
+                          className="text-sm font-medium text-side-a"
+                          onClick={() => updateSide(side, { players: [...sides[side].players, emptyPlayer()] })}
                         >
                           + Add player
                         </button>
                       )}
-                      <p className="mt-1 text-xs text-muted">Optional. Used for the &ldquo;who scored&rdquo; prompt.</p>
                     </div>
                   </>
                 )}
@@ -346,8 +325,8 @@ export function NewMatchForm() {
           {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 
           <ActionBar>
-            <button type="submit" className="btn-grad w-full rounded-xl py-3 font-semibold">
-              Create match & start scoring
+            <button type="submit" disabled={busy} className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-60">
+              {busy ? "Saving players…" : "Create match & start scoring"}
             </button>
           </ActionBar>
         </>

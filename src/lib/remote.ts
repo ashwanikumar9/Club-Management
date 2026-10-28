@@ -144,6 +144,8 @@ export function subscribeRegistrations(onChange: () => void): RealtimeChannel {
 /** The player card registered to a mobile number or email (id only; contacts stay private). */
 export async function findPlayerId(contact: string): Promise<string | null> {
   const { data, error } = await supabase().rpc("find_player", { contact_key: contact });
+  // Before the teams SQL is run the function doesn't exist yet: carry on with a new card rather than fail.
+  if (error?.code === "PGRST202") return null;
   if (error) throw error;
   return (data as string | null) || null;
 }

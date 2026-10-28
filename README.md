@@ -22,6 +22,10 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 - **Sports meets**: several sports and events under one name, an optional admin per event, a registration link
   to share (WhatsApp / copy); teams first open the organiser's Google Form, then send a registration request; the
   organiser or event admin is notified in the app and approves it, which adds the team to that event's tournament
+- **Teams (CricHeroes-style)**: a saved squad per sport with captain and admins. Add players by name + mobile
+  number, paste a list, or share an invite link that players open, sign in and join. Pick the saved team when
+  entering a tournament, a meet, a team tie or a volleyball match. Every player anywhere is entered as name +
+  mobile, so their results always reach their player card.
 - **Player cards**: one card per person for every sport, created by an organiser (mobile number and / or
   email required) or by the player. Pick a card when adding someone to a match, tie or tournament and their
   results, win rate, form, titles and medals, winning shots and upcoming matches follow them. The card

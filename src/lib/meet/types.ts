@@ -47,6 +47,8 @@ export interface Registration {
   captain: string;
   teamName: string;
   players: { name: string; cardId?: string }[];
+  /** The saved team the captain picked (team events). */
+  teamId?: string;
   /** Phone or email the organiser can reach the team on, if different from the captain's sign-in. */
   contact?: string;
   note?: string;

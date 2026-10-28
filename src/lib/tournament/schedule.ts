@@ -232,20 +232,30 @@ export function setCourts(t: Tournament, by: string, courts: string[]): Tourname
 
 export interface ParsedEntry {
   name: string;
-  players: EntryPlayer[];
+  /** `contact` is the mobile number or email written after the name, as typed (turned into a card by the page). */
+  players: (EntryPlayer & { contact?: string })[];
   seed?: number;
 }
 
-function parsePlayer(text: string): EntryPlayer {
-  const m = text.trim().match(/^#\s*(\w+)\s+(.+)$/);
-  return m ? { jersey: m[1], name: m[2].trim() } : { name: text.trim() };
+/** "#7 Kiran Rao 98765 43210" → jersey 7, name Kiran Rao, contact 98765 43210. */
+function parsePlayer(text: string): EntryPlayer & { contact?: string } {
+  let rest = text.trim();
+  let contact: string | undefined;
+  const c = rest.match(/^(.*?)[\s,]+(\+?\d[\d\s\-()]{6,}|[^\s@,]+@[^\s@,]+\.[^\s@,]+)$/);
+  if (c && c[1].trim()) {
+    rest = c[1].trim();
+    contact = c[2].trim();
+  }
+  const m = rest.match(/^#\s*(\w+)\s+(.+)$/);
+  const player = m ? { jersey: m[1], name: m[2].trim() } : { name: rest };
+  return contact ? { ...player, contact } : player;
 }
 
 /**
- * One entry per line, optionally ending with "| seed":
- * - singles: `Riya Sharma`
- * - doubles: `Meera / Karan` or `Pair name: Meera / Karan`
- * - team: `Eagles: #7 Kiran, Arjun, Vikram` (players separated by commas; "#7" is a jersey number)
+ * One entry per line, optionally ending with "| seed". Each player's mobile number (or email) follows their name:
+ * - singles: `Riya Sharma 98765 43210`
+ * - doubles: `Meera 98765 43210 / Karan 91234 56789` or `Pair name: Meera … / Karan …`
+ * - team: `Eagles: #7 Kiran 98765 43210, Arjun 91234 56789` (players separated by commas; "#7" is a jersey number)
  * Spreadsheet rows (tab separated) work too: first column the name, then players.
  */
 export function parseBulkEntries(format: MatchFormat, text: string): { entries: ParsedEntry[]; errors: string[] } {
@@ -262,12 +272,12 @@ export function parseBulkEntries(format: MatchFormat, text: string): { entries: 
     }
     if (line.includes("\t")) {
       const [name, ...rest] = line.split("\t").map((c) => c.trim()).filter(Boolean);
-      line = format === "singles" ? name : `${name}: ${rest.join(format === "doubles" ? " / " : ", ")}`;
+      line = format === "singles" ? [name, ...rest].join(" ") : `${name}: ${rest.join(format === "doubles" ? " / " : ", ")}`;
     }
     const [head, tail] = line.includes(":") ? [line.slice(0, line.indexOf(":")), line.slice(line.indexOf(":") + 1)] : ["", line];
     let players: EntryPlayer[];
     if (format === "singles") players = [parsePlayer(line)];
-    else if (format === "doubles") players = tail.split(/\s*[/&]\s*|\s*,\s*/).filter(Boolean).map(parsePlayer);
+    else if (format === "doubles") players = tail.split(/[/&]/.test(tail) ? /\s*[/&]\s*/ : /\s*,\s*/).filter(Boolean).map(parsePlayer);
     else players = tail.split(",").map((p) => p.trim()).filter(Boolean).map(parsePlayer);
     const name = format === "singles" ? players[0].name : head.trim() || players.map((p) => p.name).join(" / ");
     if (format === "doubles" && players.length !== 2) {
@@ -292,7 +302,8 @@ export function addEntries(t: Tournament, by: string, parsed: ParsedEntry[]): To
   for (const p of parsed) {
     if (names.has(p.name.toLowerCase())) throw new MutationError(`${p.name} is already in the tournament.`);
     names.add(p.name.toLowerCase());
-    added.push({ id: newId(), name: p.name, players: p.players });
+    // Contacts never go into the (public) tournament, only the player cards made from them.
+    added.push({ id: newId(), name: p.name, players: p.players.map(({ name, jersey, cardId }) => ({ name, jersey, cardId })) });
   }
   let entries = [...t.entries, ...added];
   // Seeds from the list win; anyone already holding that seed loses it.

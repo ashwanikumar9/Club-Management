@@ -6,7 +6,8 @@ import { RulesFields } from "@/components/RulesFields";
 import { SportPicker } from "@/components/SportPicker";
 import { SystemPicker } from "@/components/SystemPicker";
 import { ActionBar, StepHeader } from "@/components/Wizard";
-import { CardPicker } from "@/components/cards/CardPicker";
+import { cardPlayer, checkPlayers, emptyPlayer, PlayerInput, resolvePlayers, type PlayerDraft } from "@/components/PlayerInput";
+import { TeamPicker } from "@/components/TeamBits";
 import { MutationError } from "@/lib/rally/mutations";
 import { SPORTS } from "@/lib/rally/sports";
 import type { RallyRules, SideKey } from "@/lib/rally/types";
@@ -14,11 +15,7 @@ import { createTie } from "@/lib/tie/tie";
 import type { LineupMode, Tie } from "@/lib/tie/types";
 import { saveTie, useUser } from "@/lib/store";
 
-interface Row {
-  name: string;
-  jersey: string;
-  cardId?: string;
-}
+type Row = PlayerDraft;
 
 interface Lineup {
   format: "singles" | "doubles";
@@ -26,7 +23,7 @@ interface Lineup {
   B: number[];
 }
 
-const emptyRows = (n: number): Row[] => Array.from({ length: n }, () => ({ name: "", jersey: "" }));
+const emptyRows = (n: number): Row[] => Array.from({ length: n }, emptyPlayer);
 
 /** Default order for a 5-match tie: S, S, D, S, D (like most club team events). */
 function defaultLineups(count: number): Lineup[] {
@@ -53,6 +50,7 @@ export function TieForm() {
   const [lineups, setLineups] = useState<Lineup[]>(defaultLineups(5));
   const [rules, setRules] = useState<RallyRules>(SPORTS.badminton.rules);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   if (!user) {
     return (
@@ -85,7 +83,32 @@ export function TieForm() {
     );
   }
 
-  function submit() {
+  const drafts = (side: SideKey) => teams[side].players.map((draft, i) => ({ draft, label: `team ${side} player ${i + 1}` }));
+
+  /** Every player entered needs a name and mobile number (checked before leaving the teams step). */
+  function checkTeams(): string | null {
+    for (const side of ["A", "B"] as const) {
+      const r = checkPlayers(drafts(side));
+      if ("error" in r) return r.error;
+    }
+    return null;
+  }
+
+  async function submit() {
+    if (busy) return;
+    const invalid = checkTeams();
+    if (invalid) return setError(invalid);
+    setBusy(true);
+    const resolved: Partial<Record<SideKey, { cardId: string; name: string; jersey?: string }[]>> = {};
+    for (const side of ["A", "B"] as const) {
+      const r = await resolvePlayers(drafts(side), user!, sport);
+      if ("error" in r) {
+        setBusy(false);
+        return setError(r.error);
+      }
+      resolved[side] = r.players;
+    }
+    setBusy(false);
     try {
       // Line-up positions refer to rows in the form; map them to positions among the named players.
       const position = (side: SideKey, row: number) => named(side).findIndex((p) => p.i === row);
@@ -95,8 +118,8 @@ export function TieForm() {
         venue,
         rules,
         teams: {
-          A: { name: teams.A.name, players: teams.A.players },
-          B: { name: teams.B.name, players: teams.B.players },
+          A: { name: teams.A.name, players: resolved.A! },
+          B: { name: teams.B.name, players: resolved.B! },
         },
         matchCount,
         system: system || undefined,
@@ -122,8 +145,12 @@ export function TieForm() {
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (step === 3) submit();
-        else setStep(step + 1);
+        if (step === 3) void submit();
+        else if (step === 2) {
+          const invalid = checkTeams();
+          setError(invalid);
+          if (!invalid) setStep(3);
+        } else setStep(step + 1);
       }}
     >
       <StepHeader
@@ -157,6 +184,7 @@ export function TieForm() {
           {(["A", "B"] as const).map((side) => (
             <div key={side} className="space-y-2 rounded-2xl border border-border bg-surface p-4">
               <div className={`text-sm font-bold ${side === "A" ? "text-side-a" : "text-side-b"}`}>Team {side}</div>
+              <TeamPicker sport={sport} onPick={(t) => updateTeam(side, { name: t.name, players: t.players.length ? t.players.map(cardPlayer) : teams[side].players })} />
               <input
                 value={teams[side].name}
                 onChange={(e) => updateTeam(side, { name: e.target.value })}
@@ -165,40 +193,18 @@ export function TieForm() {
               />
               <span className="block pt-1 text-sm font-medium">Players</span>
               {teams[side].players.map((p, i) => (
-                <div key={i} className="flex gap-2">
-                  <input
-                    className="!w-16 shrink-0"
-                    value={p.jersey}
-                    onChange={(e) =>
-                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, jersey: e.target.value } : x)) })
-                    }
-                    placeholder="#"
-                    aria-label="Jersey number"
-                  />
-                  <input
-                    value={p.name}
-                    onChange={(e) =>
-                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })
-                    }
-                    placeholder={`Player ${i + 1}`}
-                    aria-label={`Team ${side} player ${i + 1}`}
-                  />
-                  <CardPicker
-                    name={p.name}
-                    cardId={p.cardId}
-                    sport={sport}
-                    onPick={(picked) =>
-                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, ...picked } : x)) })
-                    }
-                    onUnlink={() =>
-                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, cardId: undefined } : x)) })
-                    }
-                  />
-                </div>
+                <PlayerInput
+                  key={i}
+                  value={p}
+                  onChange={(next) => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? next : x)) })}
+                  label={`Team ${side} player ${i + 1}`}
+                  sport={sport}
+                  jersey
+                />
               ))}
               <button
                 type="button"
-                onClick={() => updateTeam(side, { players: [...teams[side].players, { name: "", jersey: "" }] })}
+                onClick={() => updateTeam(side, { players: [...teams[side].players, emptyPlayer()] })}
                 className="text-sm font-medium text-side-a"
               >
                 + Add player
@@ -313,8 +319,8 @@ export function TieForm() {
 
       {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
       <ActionBar>
-        <button type="submit" className="btn-grad w-full rounded-xl py-3 font-semibold">
-          {step < 3 ? "Next" : "Create team tie"}
+        <button type="submit" disabled={busy} className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-60">
+          {step < 3 ? "Next" : busy ? "Saving players…" : "Create team tie"}
         </button>
       </ActionBar>
     </form>

@@ -99,6 +99,19 @@ describe("team registration", () => {
     expect(() => approveRegistration(m, ok.registration, ok.tournament, ORG)).toThrow(/already approved/);
   });
 
+  it("carries a saved team into the tournament entry", () => {
+    const { meet: m, tournaments } = meet();
+    const team = m.events[1];
+    const t = tournaments.find((x) => x.id === team.tournamentId)!;
+    const input = { eventId: team.id, captain: CAPTAIN, teamName: "Sharks", teamId: "team1", players: [{ name: "A", cardId: "c1" }], formDone: true };
+    const reg = createRegistration(m, input, []);
+    expect(reg.teamId).toBe("team1");
+    const ok = approveRegistration(m, reg, t, ORG);
+    expect(ok.tournament.entries[0]).toMatchObject({ name: "Sharks", teamId: "team1", players: [{ name: "A", cardId: "c1" }] });
+    // The same saved team can't enter twice, even under another name.
+    expect(() => addEntry(ok.tournament, ORG, "Sharks B", [{ name: "B" }], "team1")).toThrow(/already in the tournament/);
+  });
+
   it("can be rejected with a reason, and closed registration refuses requests", () => {
     const { meet: m } = meet();
     const team = m.events[1];

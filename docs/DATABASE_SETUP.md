@@ -51,11 +51,13 @@ the **Authentication** section, or use the addresses above.
 3. New query again: paste [`supabase/migrations/20261023000000_player_cards.sql`](../supabase/migrations/20261023000000_player_cards.sql)
    and click **Run**. It adds player cards and the private `player_contacts` table: a player's mobile number
    or email is only visible to whoever added it and to the player.
-4. Check: left sidebar → **Table Editor** lists `documents` and `player_contacts`.
-
 4. New query again: paste [`supabase/migrations/20261024000000_sports_meets.sql`](../supabase/migrations/20261024000000_sports_meets.sql)
    and click **Run**. It adds sports meets and the private `registrations` table: a team's request is visible
    only to its captain and to the meet's organiser / that event's admins.
+5. New query again: paste [`supabase/migrations/20261028000000_teams.sql`](../supabase/migrations/20261028000000_teams.sql)
+   and click **Run**. It adds teams, lets a player join a team through its invite link, and lets organisers
+   reuse the player card already registered to a mobile number (only the card is found, never the number).
+6. Check: left sidebar → **Table Editor** lists `documents`, `player_contacts` and `registrations`.
 
 Already set up earlier? Run only the files you haven't run yet, in date order (the date is the start of each
 file name). Running a file twice shows an error ("already exists") and changes nothing.
@@ -186,6 +188,7 @@ by `supabase start` (Mailpit, usually <http://127.0.0.1:54324>).
 | "Couldn't save: … row-level security" | You're not the organiser or a scorer of that record, or step 2 wasn't run completely |
 | "Couldn't load data: … players" or cards don't save | Run the player cards SQL (step 2.3) |
 | Sports meets don't save, or "Couldn't load registrations" | Run the sports meets SQL (step 2.4) |
+| Teams don't save, or joining by invite link says `join_team` / `find_player` not found | Run the teams SQL (step 2.5) |
 | Nothing loads after a quiet week | The free project paused: open the Supabase dashboard and restore it |
 
 ## Current limits
