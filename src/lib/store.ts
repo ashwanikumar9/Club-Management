@@ -2,12 +2,14 @@
 
 import { useSyncExternalStore } from "react";
 import { MutationError } from "./rally/mutations";
-import type { Match } from "./rally/types";
+import type { Match, SportKey } from "./rally/types";
 import {
   deleteRow,
   fetchRow,
   identityOf,
+  findPlayerId,
   insertContacts,
+  joinTeamRemote,
   insertRows,
   insertRegistration,
   loadContacts,
@@ -24,7 +26,8 @@ import {
   type Row,
 } from "./remote";
 import type { Meet, Registration } from "./meet/types";
-import type { ContactRow, PlayerCard } from "./players/cards";
+import { createCard, type ContactRow, type PlayerCard } from "./players/cards";
+import { joinTeam, type Team } from "./teams/teams";
 import type { Tie } from "./tie/types";
 import type { Data } from "./tournament/engine";
 import { syncTournament } from "./tournament/mutations";
@@ -91,6 +94,7 @@ function collection<T extends Versioned>(name: CollectionName, localKey: string)
   };
 
   const setOne = (item: T) => setCache({ ...read(), [item.id]: item });
+
 
   /** Latest copy: from storage in prototype mode (other tabs may have written), else the live cache. */
   function read(): Collection<T> {
@@ -171,6 +175,11 @@ function collection<T extends Versioned>(name: CollectionName, localKey: string)
     refreshLocal: () => {
       if (!remoteEnabled) cache = readLocal();
     },
+    /** Shows a version already saved elsewhere (e.g. by a database function) without writing it again. */
+    put: (item: T) => {
+      const mine = read()[item.id];
+      if (!mine || item.version >= mine.version) setOne(item);
+    },
     get: (): Collection<T> | null => {
       if (!remoteEnabled) return (cache ??= readLocal());
       void load();
@@ -228,7 +237,8 @@ const tournaments = collection<Tournament>("tournaments", "cm.tournaments.v2");
 const ties = collection<Tie>("ties", "cm.ties.v1");
 const players = collection<PlayerCard>("players", "cm.players.v1");
 const meets = collection<Meet>("meets", "cm.meets.v1");
-const all = [matches, tournaments, ties, players, meets];
+const teams = collection<Team>("teams", "cm.teams.v1");
+const all = [matches, tournaments, ties, players, meets, teams];
 
 let remoteStarted = false;
 
@@ -399,6 +409,7 @@ const contacts = (() => {
   };
   return {
     get: (): ContactRow[] => (cache ??= remoteEnabled ? [] : readLocal()),
+    current: (): ContactRow[] => (remoteEnabled ? (cache ?? []) : readLocal()),
     refreshLocal: () => {
       if (!remoteEnabled) cache = readLocal();
     },
@@ -415,7 +426,7 @@ const contacts = (() => {
     },
     add: async (rows: ContactRow[]) => {
       const current = remoteEnabled ? (cache ?? []) : readLocal();
-      set([...current, ...rows]);
+      set([...current, ...rows.filter((r) => !current.some((c) => c.playerId === r.playerId && c.contact === r.contact))]);
       if (remoteEnabled) {
         await insertContacts(rows).catch((e: Error) => reportSyncError(`Couldn't save the contact: ${e.message}`));
       }
@@ -441,9 +452,37 @@ export function usePlayerContacts(): ContactRow[] {
 }
 
 /** Saves a new card, then its contacts (the database only accepts contacts for a card that exists). */
-export function savePlayerCard(card: PlayerCard, rows: ContactRow[]) {
-  void players.saveMany([card]).then(() => contacts.add(rows));
+export function savePlayerCard(card: PlayerCard, rows: ContactRow[]): Promise<void> {
+  return players.saveMany([card]).then(() => contacts.add(rows));
 }
+
+/**
+ * Turns "name + mobile / email" into a player card: the card already registered to that contact (made by
+ * anyone), or a new one. Every player in a match, team or tournament is entered this way.
+ */
+export async function ensureCards(
+  rows: { name: string; contact: string; jersey?: string }[],
+  by: string,
+  sport?: SportKey,
+): Promise<{ cardId: string; name: string; jersey?: string }[]> {
+  const out: { cardId: string; name: string; jersey?: string }[] = [];
+  const seen = new Map<string, string>();
+  for (const row of rows) {
+    let cardId = seen.get(row.contact) ?? contacts.current().find((c) => c.contact === row.contact)?.playerId ?? null;
+    if (!cardId && remoteEnabled) cardId = await findPlayerId(row.contact);
+    if (!cardId) {
+      const r = createCard({ name: row.name, contacts: [row.contact], sports: sport ? [sport] : [], by });
+      await savePlayerCard(r.card, r.contacts);
+      cardId = r.card.id;
+    }
+    seen.set(row.contact, cardId);
+    const known = players.read()[cardId];
+    out.push({ cardId, name: known?.name ?? row.name.trim(), jersey: row.jersey });
+  }
+  return out;
+}
+
+
 
 export const updatePlayerCard = (id: string, mutate: (card: PlayerCard) => PlayerCard) => players.update(id, mutate);
 
@@ -703,4 +742,42 @@ export async function decideRegistration(
     if (err) return err;
   }
   return registrations.replace(result.registration, reg.version);
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Teams
+
+export function useTeams(): Collection<Team> | null {
+  return useSyncExternalStore(subscribe, teams.get, () => null);
+}
+
+export function useTeam(id: string): Team | null | undefined {
+  const list = useTeams();
+  if (list === null) return undefined;
+  return list[id] ?? null;
+}
+
+export const saveTeam = (team: Team) => teams.saveMany([team]);
+export const updateTeam = (id: string, mutate: (t: Team) => Team) => teams.update(id, mutate);
+
+/**
+ * Joins a team through its invite link as the signed-in person, with their own card (created from their
+ * sign-in if they don't have one yet).
+ */
+export async function joinTeamByLink(team: Team, inviteCode: string, name: string, user: string): Promise<string | null> {
+  try {
+    const mine = Object.values(players.read()).find((card) => contacts.current().some((c) => c.playerId === card.id && c.contact === user));
+    const [member] = mine ? [{ cardId: mine.id, name: name.trim() || mine.name }] : await ensureCards([{ name, contact: user }], user, team.sport);
+    const joined = joinTeam(team, inviteCode, member);
+    if (remoteEnabled) {
+      const version = await joinTeamRemote(team.id, inviteCode, member.cardId, member.name);
+      teams.put({ ...joined, version });
+    } else {
+      return teams.update(team.id, (t) => joinTeam(t, inviteCode, member));
+    }
+    return null;
+  } catch (e) {
+    if (e instanceof MutationError) return e.message;
+    return e instanceof Error ? e.message : String(e);
+  }
 }

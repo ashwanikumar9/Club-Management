@@ -20,7 +20,9 @@ const LINKS: { href: string; label: string; icon: string; hint?: string }[] = [
   { href: "/matches/new", label: "Create a match", icon: "＋", hint: "One match, scored live" },
   { href: "/tournaments/new", label: "Create a tournament", icon: "🏆", hint: "League, knockout or groups" },
   { href: "/meets/new", label: "Create a sports meet", icon: "🏅", hint: "Several sports, team registration" },
+  { href: "/teams/new", label: "Create a team", icon: "🛡️", hint: "Squad with name + mobile, invite link" },
   { href: "/ties/new", label: "Team tie", icon: "⇄", hint: "Badminton / table tennis team match" },
+  { href: "/teams", label: "Teams", icon: "🎽" },
   { href: "/players", label: "Players", icon: "👥" },
   { href: "/me", label: "My card", icon: "🪪" },
 ];
@@ -29,6 +31,10 @@ const LINKS: { href: string; label: string; icon: string; hint?: string }[] = [
 export function SideNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  // The longest link the current page sits under, so /teams/new lights up "Create a team" and not "Teams" too.
+  const current = LINKS.map((l) => l.href)
+    .filter((h) => (h === "/" ? pathname === "/" : pathname === h || pathname.startsWith(`${h}/`)))
+    .sort((a, b) => b.length - a.length)[0];
   const pending = usePendingRequests();
   useEffect(() => {
     if (!open) return;
@@ -71,7 +77,7 @@ export function SideNav() {
               )}
               <ul className="space-y-0.5">
                 {LINKS.map((l) => {
-                  const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+                  const active = l.href === current;
                   return (
                     <li key={l.href}>
                       <Link

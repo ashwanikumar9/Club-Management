@@ -20,7 +20,7 @@ export function supabase(): SupabaseClient {
   return client;
 }
 
-export type CollectionName = "matches" | "tournaments" | "ties" | "players" | "meets";
+export type CollectionName = "matches" | "tournaments" | "ties" | "players" | "meets" | "teams";
 
 export interface Row<T> {
   collection: CollectionName;
@@ -139,6 +139,20 @@ export function subscribeRegistrations(onChange: () => void): RealtimeChannel {
     .channel("registrations")
     .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => onChange())
     .subscribe();
+}
+
+/** The player card registered to a mobile number or email (id only; contacts stay private). */
+export async function findPlayerId(contact: string): Promise<string | null> {
+  const { data, error } = await supabase().rpc("find_player", { contact_key: contact });
+  if (error) throw error;
+  return (data as string | null) || null;
+}
+
+/** Joins a team through its invite link with the signed-in person's own card. Returns the team's new version. */
+export async function joinTeamRemote(teamId: string, inviteCode: string, cardId: string, name: string): Promise<number> {
+  const { data, error } = await supabase().rpc("join_team", { team_id: teamId, invite_code: inviteCode, card_id: cardId, player_name: name });
+  if (error) throw error;
+  return data as number;
 }
 
 /** Live changes to every document, from any device. */
