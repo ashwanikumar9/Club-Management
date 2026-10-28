@@ -3,7 +3,7 @@ import { addPoint, closeMatch, createMatch, setLatestPointDetail, startMatch } f
 import { SPORTS } from "../rally/sports";
 import type { Match } from "../rally/types";
 import { addEntry, createTournament, generateFixtures } from "../tournament/mutations";
-import { addContact, canEditCard, createCard, maskContact, myCards, searchCards, updateCard } from "./cards";
+import { addContact, ageOf, canEditCard, createCard, maskContact, myCards, profileSummary, searchCards, updateCard } from "./cards";
 import { playerStats } from "./stats";
 
 const ORG = "@org";
@@ -30,6 +30,25 @@ describe("player cards", () => {
     const r = addContact(card, contacts, "riya@example.com", "+919876543210");
     expect(r.card.contactHints).toHaveLength(2);
     expect(() => addContact(card, contacts, ORG, "riya@example.com")).toThrow(/already/);
+  });
+
+  it("lets the player set their age and how they play each sport", () => {
+    const { card, contacts } = createCard({ name: "Riya", contacts: ["riya@example.com"], sports: ["badminton"], hand: "left", by: ORG });
+    expect(profileSummary(card, "badminton")).toBe("Left-handed"); // older card-wide hand still shows
+    const year = new Date().getFullYear() - 24;
+    const next = updateCard(card, contacts, "riya@example.com", {
+      name: "Riya S.",
+      birthYear: year,
+      sports: ["badminton", "table_tennis"],
+      profiles: { badminton: { hand: "Right-handed", style: "Attacking", event: "Nonsense" }, table_tennis: { grip: "Penhold" } },
+      hand: null,
+    });
+    expect(next.name).toBe("Riya S.");
+    expect(ageOf(next)).toBe(24);
+    expect(next.profiles).toEqual({ badminton: { hand: "Right-handed", style: "Attacking" }, table_tennis: { grip: "Penhold" } });
+    expect(profileSummary(next, "badminton")).toBe("Right-handed · Attacking");
+    expect(() => updateCard(card, contacts, "riya@example.com", { birthYear: 1800 })).toThrow(/year of birth/);
+    expect(updateCard(next, contacts, "riya@example.com", { birthYear: null }).birthYear).toBeUndefined();
   });
 
   it("searches by name and hides hidden cards from others", () => {

@@ -545,6 +545,11 @@ Regulations 3.7.5–3.7.7), FIVB Official Volleyball Rules 2025–2028, FIVB Eve
   themselves. Usernames can't own a card, since they can't prove who someone is
 - **Ownership**: whoever signs in with one of the card's numbers / emails owns it and can edit it, add more
   contacts or hide it from search. The creator can edit it too
+- **Profile the player edits at any time** ("Edit my profile" on My card or their card page): name, year of
+  birth (the card shows the age), club, sports and **playing style per sport** — badminton: hand, style
+  (attacking / defensive / all-round), best event; table tennis: hand, grip (shakehand / penhold), style;
+  volleyball: hand, position. **The record is never editable**: played, won, titles, form, medals and points
+  are always worked out from the scored matches
 - **Privacy**: the public card only shows masked hints ("+91 ••••• 43210", "r•••@gmail.com"); full contacts
   are stored separately and readable only by whoever added them and by the player (database row-level security)
 - **Reuse**: every player field asks for name + mobile number, which links the player's card automatically; a

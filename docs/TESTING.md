@@ -45,6 +45,8 @@ note anything odd with the page and what you tapped.
 - [ ] In a new match, tap **+ Card** next to a player and pick the card (shows **✓ Card**)
 - [ ] After the match closes, the card shows Played / Won / Form and the match under Results
 - [ ] Scorer signs in → **🪪 My card** shows that card as theirs → **Edit card** works
+- [ ] The player: **My card → Edit my profile** → change name, year of birth, pick sports and a style for each →
+      **Save** → the card shows "Age …" and e.g. "Left-handed · Attacking" next to Badminton; Played / Won don't change
 - [ ] A third person can view the card but has no **Edit card** button
 
 ## 7. Sports meet

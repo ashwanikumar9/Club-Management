@@ -14,14 +14,76 @@ export interface PlayerCard {
   organiser: string;
   sports: SportKey[];
   club?: string;
-  /** Playing hand (badminton / table tennis). */
+  /** Playing hand (older cards; new cards keep it per sport in `profiles`). */
   hand?: "right" | "left";
+  /** Year of birth; the card shows the age worked out from it (age groups go by year of birth too). */
+  birthYear?: number;
+  /** How the player plays each sport, e.g. { badminton: { hand: "Left-handed", style: "Attacking" } }. */
+  profiles?: Partial<Record<SportKey, SportProfile>>;
   /** Masked contacts, e.g. "+91 ••••• 43210", so organisers can tell two "Riya"s apart. */
   contactHints: string[];
   /** Left out of search and the player directory (the profile link still works). */
   hidden?: boolean;
   createdAt: string;
   version: number;
+}
+
+/** Playing style in one sport: field key (see PROFILE_FIELDS) → chosen option. */
+export type SportProfile = Partial<Record<string, string>>;
+
+const HAND = { key: "hand", label: "Playing hand", options: ["Right-handed", "Left-handed"] };
+
+/** What a player can say about how they play, per sport. Their record is never editable: it comes from matches. */
+export const PROFILE_FIELDS: Record<SportKey, { key: string; label: string; options: string[] }[]> = {
+  badminton: [
+    HAND,
+    { key: "style", label: "Style", options: ["Attacking", "Defensive", "All-round"] },
+    { key: "event", label: "Best at", options: ["Singles", "Doubles", "Mixed doubles"] },
+  ],
+  table_tennis: [
+    HAND,
+    { key: "grip", label: "Grip", options: ["Shakehand", "Penhold"] },
+    { key: "style", label: "Style", options: ["Attacker", "Defender / chopper", "All-round"] },
+  ],
+  volleyball: [
+    HAND,
+    { key: "position", label: "Position", options: ["Setter", "Outside hitter", "Opposite", "Middle blocker", "Libero", "Defensive specialist", "All-rounder"] },
+  ],
+};
+
+/** Age this year, from the year of birth. */
+export function ageOf(card: Pick<PlayerCard, "birthYear">, now = new Date()): number | null {
+  return card.birthYear ? now.getFullYear() - card.birthYear : null;
+}
+
+/** "Left-handed · Attacking · Doubles" for one sport (falls back to the older card-wide hand). */
+export function profileSummary(card: PlayerCard, sport: SportKey): string {
+  const p = card.profiles?.[sport] ?? {};
+  const values = PROFILE_FIELDS[sport].map((f) => p[f.key]).filter(Boolean) as string[];
+  if (!p.hand && card.hand && PROFILE_FIELDS[sport].some((f) => f.key === "hand")) values.unshift(card.hand === "right" ? "Right-handed" : "Left-handed");
+  return values.join(" · ");
+}
+
+function cleanProfiles(profiles: Partial<Record<SportKey, SportProfile>>): Partial<Record<SportKey, SportProfile>> | undefined {
+  const out: Partial<Record<SportKey, SportProfile>> = {};
+  for (const [sport, profile] of Object.entries(profiles) as [SportKey, SportProfile][]) {
+    const fields = PROFILE_FIELDS[sport];
+    if (!fields || !profile) continue;
+    const kept: SportProfile = {};
+    for (const f of fields) {
+      const v = profile[f.key];
+      if (v && f.options.includes(v)) kept[f.key] = v;
+    }
+    if (Object.keys(kept).length) out[sport] = kept;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function cleanBirthYear(year: number, now = new Date()): number {
+  if (!Number.isInteger(year) || year < now.getFullYear() - 100 || year > now.getFullYear() - 3) {
+    throw new MutationError(`Enter a year of birth between ${now.getFullYear() - 100} and ${now.getFullYear() - 3}.`);
+  }
+  return year;
 }
 
 /** Private link between a card and a mobile number or email. Signing in with it makes the card yours. */
@@ -95,6 +157,9 @@ export interface CardChanges {
   sports?: SportKey[];
   club?: string;
   hand?: "right" | "left" | null;
+  /** null clears it. */
+  birthYear?: number | null;
+  profiles?: Partial<Record<SportKey, SportProfile>>;
   hidden?: boolean;
 }
 
@@ -108,6 +173,8 @@ export function updateCard(card: PlayerCard, contacts: ContactRow[], by: string,
     sports: changes.sports ? [...new Set(changes.sports)] : card.sports,
     club: changes.club === undefined ? card.club : changes.club.trim() || undefined,
     hand: changes.hand === undefined ? card.hand : (changes.hand ?? undefined),
+    birthYear: changes.birthYear === undefined ? card.birthYear : changes.birthYear === null ? undefined : cleanBirthYear(changes.birthYear),
+    profiles: changes.profiles === undefined ? card.profiles : cleanProfiles(changes.profiles),
     hidden: changes.hidden ?? card.hidden,
   };
 }

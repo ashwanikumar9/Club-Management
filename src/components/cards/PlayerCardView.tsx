@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { initials, type PlayerCard } from "@/lib/players/cards";
+import { ageOf, initials, profileSummary, type PlayerCard } from "@/lib/players/cards";
 import type { PlayerStats } from "@/lib/players/stats";
-import { SPORTS } from "@/lib/rally/sports";
+import { SPORT_ICON, SPORTS } from "@/lib/rally/sports";
 
 const MEDAL = { 1: "🥇", 2: "🥈", 3: "🥉" } as const;
 
@@ -21,7 +21,7 @@ export function PlayerCardView({ card, stats, href, mine = false }: { card: Play
             {mine && <span className="ml-2 align-middle text-xs font-semibold text-accent">You</span>}
           </p>
           <p className="truncate text-sm text-muted">
-            {[card.club, card.hand && `${card.hand === "right" ? "Right" : "Left"}-handed`].filter(Boolean).join(" · ") || "Player"}
+            {[card.club, ageOf(card) !== null && `Age ${ageOf(card)}`].filter(Boolean).join(" · ") || "Player"}
           </p>
         </div>
         {stats.medals.length > 0 && (
@@ -34,13 +34,16 @@ export function PlayerCardView({ card, stats, href, mine = false }: { card: Play
         )}
       </div>
       {card.sports.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+        <ul className="space-y-1 px-4 pb-3">
           {card.sports.map((s) => (
-            <span key={s} className="rounded-full border border-accent/40 px-2 py-0.5 text-xs font-medium text-accent">
-              {SPORTS[s].name}
-            </span>
+            <li key={s} className="flex min-w-0 items-center gap-2 text-xs">
+              <span className={`sport-${s} sport-soft shrink-0 rounded-full border px-2 py-0.5 font-semibold`}>
+                {SPORT_ICON[s]} {SPORTS[s].name}
+              </span>
+              <span className="truncate text-muted">{profileSummary(card, s)}</span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
       <dl className="tabular grid grid-cols-4 divide-x divide-border border-y border-border text-center">
         {[

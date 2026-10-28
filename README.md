@@ -29,7 +29,8 @@ It covers the **rally family**: Badminton, Table Tennis and Volleyball.
 - **Player cards**: one card per person for every sport, created by an organiser (mobile number and / or
   email required) or by the player. Pick a card when adding someone to a match, tie or tournament and their
   results, win rate, form, titles and medals, winning shots and upcoming matches follow them. The card
-  becomes the player's own when they sign in with that number or email ("My card" in the header). Contacts
+  becomes the player's own when they sign in with that number or email ("My card" in the header), and they can
+  edit their name, age and playing style per sport at any time; their record always comes from the matches. Contacts
   stay private: others only see a masked hint
 - **Score cards**: one compact card per match, the same in every sport, used on the home page and profiles
 - **Editable fixtures and extra rounds**: re-pair, swap or delete fixtures before they start, add matches to

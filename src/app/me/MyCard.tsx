@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { EditCard } from "@/components/cards/EditCard";
 import { PlayerCardView } from "@/components/cards/PlayerCardView";
 import { identityKind } from "@/lib/identity";
-import { myCards } from "@/lib/players/cards";
+import { myCards, type PlayerCard } from "@/lib/players/cards";
 import { playerStats } from "@/lib/players/stats";
 import { useMatches, usePlayerContacts, usePlayers, useTies, useTournaments, useUser } from "@/lib/store";
 
@@ -15,6 +17,7 @@ export function MyCard() {
   const matches = useMatches();
   const ties = useTies();
   const tournaments = useTournaments();
+  const [editing, setEditing] = useState<PlayerCard | null>(null);
 
   if (!user) {
     return (
@@ -32,8 +35,14 @@ export function MyCard() {
     <div className="space-y-4 pb-10">
       <h1 className="text-xl font-bold">My player card</h1>
       {mine.map((c) => (
-        <PlayerCardView key={c.id} card={c} stats={playerStats(c.id, { matches, ties }, Object.values(tournaments))} href={`/players/${c.id}`} mine />
+        <div key={c.id} className="space-y-2">
+          <PlayerCardView card={c} stats={playerStats(c.id, { matches, ties }, Object.values(tournaments))} href={`/players/${c.id}`} mine />
+          <button type="button" onClick={() => setEditing(c)} className="w-full rounded-xl border border-border py-2.5 text-sm font-semibold">
+            Edit my profile: name, age, playing style
+          </button>
+        </div>
       ))}
+      {editing && <EditCard card={cards[editing.id] ?? editing} mine onClose={() => setEditing(null)} />}
       {mine.length === 0 && (
         <div className="space-y-3 rounded-2xl border border-dashed border-border p-6 text-center">
           {canOwn ? (
