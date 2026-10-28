@@ -197,7 +197,7 @@ function EditCard({ card, onClose }: { card: PlayerCard; onClose: () => void }) 
                 type="button"
                 aria-pressed={on}
                 onClick={() => setSports(on ? sports.filter((x) => x !== s.key) : [...sports, s.key])}
-                className={`rounded-full border px-3 py-1.5 text-sm ${on ? "border-foreground font-semibold" : "border-border text-muted"}`}
+                className={`rounded-full border px-3 py-1.5 text-sm ${on ? "opt-on font-semibold" : "border-border text-muted"}`}
               >
                 {s.name}
               </button>
@@ -240,7 +240,7 @@ function EditCard({ card, onClose }: { card: PlayerCard; onClose: () => void }) 
           <button type="button" onClick={onClose} className="rounded-xl border border-border py-2.5 text-sm">
             Cancel
           </button>
-          <button type="button" onClick={save} className="rounded-xl bg-foreground py-2.5 text-sm font-semibold text-background">
+          <button type="button" onClick={save} className="btn-grad rounded-xl py-2.5 text-sm font-semibold">
             Save
           </button>
         </div>

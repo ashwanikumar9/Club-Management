@@ -73,7 +73,7 @@ export function IdentityForm({
           autoCapitalize="none"
           autoFocus={autoFocus}
         />
-        <button type="button" onClick={submit} className="shrink-0 rounded-lg bg-foreground px-4 text-sm font-semibold text-background">
+        <button type="button" onClick={submit} className="btn-grad shrink-0 rounded-lg px-4 text-sm font-semibold">
           {submitLabel}
         </button>
       </div>

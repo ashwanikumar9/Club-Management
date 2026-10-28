@@ -38,7 +38,7 @@ export function OutcomePicker({
         {options.map((o) => (
           <label
             key={`${o.type}-${o.winner ?? ""}`}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${choice && same(choice, o) ? "border-2 border-foreground" : "border-border"}`}
+            className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${choice && same(choice, o) ? "opt-on" : "border-border"}`}
           >
             <input type="radio" name="outcome" checked={!!choice && same(choice, o)} onChange={() => setChoice(o)} />
             <span>

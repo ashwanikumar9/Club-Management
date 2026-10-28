@@ -4,7 +4,7 @@ import Link from "next/link";
 import { StatusBadge, sideBg, sideText } from "@/components/match-ui";
 import { matchState } from "@/lib/rally/engine";
 import { describeOutcome } from "@/lib/rally/outcome";
-import { SPORTS } from "@/lib/rally/sports";
+import { SPORT_ICON, SPORTS } from "@/lib/rally/sports";
 import type { Match, SideKey } from "@/lib/rally/types";
 import { formatSchedule } from "@/lib/tournament/schedule";
 
@@ -29,7 +29,12 @@ export function ScoreCard({ match, highlight, href }: { match: Match; highlight?
   return (
     <Link href={href ?? `/matches/${match.id}`} className="block rounded-2xl border border-border bg-surface p-3">
       <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted">
-        <span className="min-w-0 truncate">{[sport.name, label].filter(Boolean).join(" · ")}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className={`sport-${match.sport} sport-tile grid h-5 w-5 shrink-0 place-items-center rounded text-[11px]`} aria-hidden>
+            {SPORT_ICON[match.sport]}
+          </span>
+          <span className="truncate">{[sport.name, label].filter(Boolean).join(" · ")}</span>
+        </span>
         <StatusBadge match={match} state={state} />
       </div>
       {(["A", "B"] as const).map((side) => (

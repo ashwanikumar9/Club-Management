@@ -25,7 +25,7 @@ export function PlayersDirectory() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-bold">Players</h1>
         {user && (
-          <Link href="/players/new" className="rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background">
+          <Link href="/players/new" className="btn-grad rounded-lg px-3 py-2 text-sm font-semibold">
             + New card
           </Link>
         )}

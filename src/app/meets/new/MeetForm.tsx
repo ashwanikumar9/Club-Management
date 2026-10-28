@@ -3,11 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
-import { SPORT_ICON } from "@/app/matches/new/NewMatchForm";
+import { ActionBar, StepHeader } from "@/components/Wizard";
 import { IDENTITY_ICON, identityKind } from "@/lib/identity";
 import { createMeet, eventLabel, type NewEventInput } from "@/lib/meet/meet";
 import { MutationError } from "@/lib/rally/mutations";
-import { FORMAT_LABELS, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
+import { FORMAT_LABELS, SPORT_LIST, SPORTS, SPORT_ICON } from "@/lib/rally/sports";
 import type { MatchFormat, SportKey } from "@/lib/rally/types";
 import { TEMPLATES } from "@/lib/tournament/presets";
 import { saveMeet, useUser } from "@/lib/store";
@@ -91,18 +91,8 @@ export function MeetForm() {
   }
 
   return (
-    <div className="space-y-5 pb-10">
-      <div className="flex items-center gap-3">
-        {step > 1 && (
-          <button type="button" onClick={() => setStep((step - 1) as Step)} aria-label="Back" className="grid h-9 w-9 place-items-center rounded-lg border border-border">
-            ←
-          </button>
-        )}
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">Step {step} of 4</p>
-          <h1 className="text-xl font-bold">{TITLES[step]}</h1>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <StepHeader step={step} total={4} title={TITLES[step]} onBack={() => setStep((step - 1) as Step)} />
 
       {step === 1 && (
         <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
@@ -136,7 +126,7 @@ export function MeetForm() {
         <section className="space-y-3">
           <p className="text-sm text-muted">Tap each sport and format you want. Every event becomes its own tournament.</p>
           {SPORT_LIST.map((s) => (
-            <div key={s.key} className="rounded-2xl border border-border bg-surface p-4">
+            <div key={s.key} className={`sport-${s.key} sport-soft rounded-2xl border p-4`}>
               <p className="flex items-center gap-2 font-semibold">
                 <span className="text-2xl" aria-hidden>
                   {SPORT_ICON[s.key]}
@@ -150,7 +140,7 @@ export function MeetForm() {
                     type="button"
                     aria-pressed={has(s.key, f)}
                     onClick={() => toggle(s.key, f)}
-                    className={`rounded-full border px-3 py-1.5 text-sm ${has(s.key, f) ? "border-foreground bg-foreground font-semibold text-background" : "border-border"}`}
+                    className={`rounded-full border px-3 py-1.5 text-sm ${has(s.key, f) ? "opt-on font-semibold" : "border-border"}`}
                   >
                     {has(s.key, f) ? "✓ " : ""}
                     {FORMAT_LABELS[f]}
@@ -265,15 +255,17 @@ export function MeetForm() {
       )}
 
       {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-      {step < 4 ? (
-        <button type="button" onClick={next} className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
-          Next
-        </button>
-      ) : (
-        <button type="button" onClick={submit} className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
-          Create sports meet
-        </button>
-      )}
+      <ActionBar>
+        {step < 4 ? (
+          <button type="button" onClick={next} className="btn-grad w-full rounded-xl py-3 font-semibold">
+            Next{step === 2 && events.length ? ` (${events.length} event${events.length === 1 ? "" : "s"})` : ""}
+          </button>
+        ) : (
+          <button type="button" onClick={submit} className="btn-grad w-full rounded-xl py-3 font-semibold">
+            Create sports meet
+          </button>
+        )}
+      </ActionBar>
     </div>
   );
 }

@@ -12,18 +12,26 @@ export function UserMenu() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="max-w-[55%] truncate rounded-lg bg-surface-2 px-3 py-1.5 text-sm font-medium"
-      >
-        {user ? `${IDENTITY_ICON[identityKind(user)]} ${user}` : "Sign in"}
-      </button>
+      {user ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Signed in as ${user}`}
+          title={user}
+          className="btn-grad grid h-9 w-9 shrink-0 place-items-center rounded-full text-sm font-bold uppercase"
+        >
+          {user.replace(/^[@+]/, "").slice(0, 1)}
+        </button>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="btn-grad shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold">
+          Sign in
+        </button>
+      )}
       {open && (
         <Sheet title={user ? "Signed in" : "Sign in"} onClose={() => setOpen(false)}>
           {user && (
             <p className="mb-3 text-sm">
-              You are signed in as <strong>{user}</strong>.
+              {IDENTITY_ICON[identityKind(user)]} You are signed in as <strong className="break-all">{user}</strong>.
             </p>
           )}
           {isRemote ? (
@@ -123,7 +131,7 @@ function CodeSignIn({ onDone }: { onDone: () => void }) {
           aria-label="Sign-in code"
           autoFocus
         />
-        <button type="submit" disabled={busy || code.trim().length < 6} className="shrink-0 rounded-lg bg-foreground px-4 text-sm font-semibold text-background disabled:opacity-40">
+        <button type="submit" disabled={busy || code.trim().length < 6} className="btn-grad shrink-0 rounded-lg px-4 text-sm font-semibold disabled:opacity-40">
           {busy ? "Checking…" : "Sign in"}
         </button>
       </div>

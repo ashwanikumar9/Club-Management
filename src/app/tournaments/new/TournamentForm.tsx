@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RulesFields } from "@/components/RulesFields";
+import { SportPicker } from "@/components/SportPicker";
 import { SystemPicker } from "@/components/SystemPicker";
+import { ActionBar, StepHeader } from "@/components/Wizard";
 import { MutationError } from "@/lib/rally/mutations";
 import { matchingPreset } from "@/lib/rally/presets";
 import { describeRules } from "@/lib/rally/rules";
-import { FORMAT_LABELS, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
+import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
 import type { MatchFormat, RallyRules, SportKey } from "@/lib/rally/types";
 import { tieSystem } from "@/lib/tie/systems";
 import { createTournament, sportFormats, usesTies } from "@/lib/tournament/mutations";
@@ -52,6 +54,7 @@ export function TournamentForm() {
   const [system, setSystem] = useState("");
   const [thirdPlace, setThirdPlace] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(1);
   // Bumped when a template replaces the rules, so the rules editor re-opens on the presets.
   const [rulesKey, setRulesKey] = useState(0);
   const config = SPORTS[sport];
@@ -134,194 +137,208 @@ export function TournamentForm() {
     structure !== "league" && thirdPlace ? "third-place match" : null,
   ].filter(Boolean);
 
+  const STEP_TITLES = ["Sport and template", "Name and place", "Entries and structure", "Rules and table"];
+  const chosenTemplate = TEMPLATES.find((t) => t.key === template);
+  const chosenStructure = STRUCTURES.find((x) => x.key === structure)!;
+
+  function next() {
+    setError(null);
+    if (step === 2 && !name.trim()) return setError("Give the tournament a name.");
+    setStep(step + 1);
+  }
+
   return (
     <form
-      className="space-y-6 pb-10"
+      className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        submit();
+        if (step === 4) submit();
+        else next();
       }}
     >
-      <h1 className="text-xl font-bold">New tournament</h1>
+      <StepHeader step={step} total={4} title={STEP_TITLES[step - 1]} onBack={() => setStep(step - 1)} />
 
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Tournament name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Inter-College Sports Meet 2026" />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
+      {step === 1 && (
+        <>
+          <SportPicker value={sport} onChange={chooseSport} />
+          <section className="space-y-2">
+            <h2 className="font-semibold">Start from a template</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {TEMPLATES.filter((tpl) => tpl.sports.includes(sport)).map((tpl) => (
+                <button
+                  key={tpl.key}
+                  type="button"
+                  aria-pressed={template === tpl.key}
+                  onClick={() => applyTemplate(tpl)}
+                  className={`rounded-xl border px-3 py-2.5 text-left ${template === tpl.key ? "opt-on" : "border-border bg-surface"}`}
+                >
+                  <span className="block text-sm font-semibold">{tpl.label}</span>
+                  <span className="block text-xs text-muted">{tpl.who}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted">{chosenTemplate ? chosenTemplate.text : "Not sure how to set it up? Pick the closest one; everything stays editable in the next steps."}</p>
+          </section>
+          <p className="rounded-xl bg-[var(--tint)] px-4 py-3 text-sm">
+            <span className="font-semibold">You&rsquo;ll get: </span>
+            {summary.join(" · ")}
+          </p>
+        </>
+      )}
+
+      {step === 2 && (
+        <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Venue</span>
-            <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Sports Hall" />
+            <span className="mb-1 block text-sm font-medium">Tournament name</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Inter-College Sports Meet 2026" autoFocus />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">City</span>
-            <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Patna" />
-          </label>
-          <label className="col-span-2 block">
-            <span className="mb-1 block text-sm font-medium">Start date</span>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </label>
-        </div>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Courts / tables</span>
-          <input value={courts} onChange={(e) => setCourts(e.target.value)} placeholder="Court 1, Court 2" />
-          <span className="mt-1 block text-xs text-muted">Comma separated. Used when scheduling matches; you can change them later.</span>
-        </label>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="font-semibold">Sport</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {SPORT_LIST.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => chooseSport(s.key)}
-              className={`rounded-xl border px-2 py-3 text-sm font-semibold ${
-                sport === s.key ? "border-foreground bg-foreground text-background" : "border-border bg-surface"
-              }`}
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="font-semibold">Start from a template</h2>
-          <p className="text-xs text-muted">Not sure how to set it up? Pick the closest one; every setting below stays editable.</p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {TEMPLATES.filter((tpl) => tpl.sports.includes(sport)).map((tpl) => (
-            <button
-              key={tpl.key}
-              type="button"
-              onClick={() => applyTemplate(tpl)}
-              className={`rounded-xl border p-3 text-left ${template === tpl.key ? "border-2 border-foreground" : "border-border bg-surface"}`}
-            >
-              <span className="block font-semibold">{tpl.label}</span>
-              <span className="block text-xs font-medium text-accent">{tpl.who}</span>
-              <span className="mt-1 block text-xs text-muted">{tpl.text}</span>
-            </button>
-          ))}
-        </div>
-        <p className="rounded-xl bg-surface-2 px-4 py-3 text-sm">
-          <span className="font-semibold">You&rsquo;ll get: </span>
-          {summary.join(" · ")}
-        </p>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="font-semibold">Entries</h2>
-        {sportFormats(sport).length > 1 && (
-          <div className="flex gap-2">
-            {sportFormats(sport).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFormat(f)}
-                className={`flex-1 rounded-lg border py-2 text-sm ${format === f ? "border-foreground font-semibold" : "border-border bg-surface text-muted"}`}
-              >
-                {FORMAT_LABELS[f]}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Venue</span>
+              <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="e.g. Main Sports Hall" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">City</span>
+              <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Patna" />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Start date</span>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium">Courts / tables</span>
+              <input value={courts} onChange={(e) => setCourts(e.target.value)} placeholder="Court 1, Court 2" />
+            </label>
           </div>
-        )}
-        {ties && (
-          <div className="space-y-3 rounded-xl border border-border bg-surface p-3">
-            <p className="text-sm font-medium">Team tie format</p>
-            <SystemPicker sport={sport} value={system} onChange={setSystem} />
-            {!system && (
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium">Matches per tie</span>
-                <select value={tieMatchCount} onChange={(e) => setTieMatchCount(Number(e.target.value))}>
+          <p className="text-xs text-muted">Courts are comma separated and used for the schedule; you can change them later.</p>
+        </section>
+      )}
+
+      {step === 3 && (
+        <>
+          {sportFormats(sport).length > 1 && (
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Entries</h2>
+              <div className="flex gap-2">
+                {sportFormats(sport).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    aria-pressed={format === f}
+                    onClick={() => setFormat(f)}
+                    className={`flex-1 rounded-xl border py-2.5 text-sm ${format === f ? "opt-on font-semibold" : "border-border bg-surface text-muted"}`}
+                  >
+                    {FORMAT_LABELS[f]}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+          {ties && (
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Team tie format</h2>
+              <SystemPicker sport={sport} value={system} onChange={setSystem} />
+              {!system && (
+                <select value={tieMatchCount} onChange={(e) => setTieMatchCount(Number(e.target.value))} aria-label="Matches per tie">
                   {[1, 3, 5, 7, 9].map((n) => (
                     <option key={n} value={n}>
                       {n} {n === 1 ? "match" : `matches (first to ${Math.floor(n / 2) + 1} wins)`}
                     </option>
                   ))}
                 </select>
+              )}
+            </section>
+          )}
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold">Structure</h2>
+            <div className="grid grid-cols-3 gap-2">
+              {STRUCTURES.map((x) => (
+                <button
+                  key={x.key}
+                  type="button"
+                  aria-pressed={structure === x.key}
+                  onClick={() => setStructure(x.key)}
+                  className={`rounded-xl border px-2 py-2.5 text-sm font-semibold leading-snug ${structure === x.key ? "opt-on" : "border-border bg-surface"}`}
+                >
+                  {x.title}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted">{chosenStructure.text}</p>
+            {structure !== "knockout" && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={legs === 2} onChange={(e) => setLegs(e.target.checked ? 2 : 1)} />
+                Play each opponent twice (home and away)
               </label>
             )}
-            <p className="text-xs text-muted">Each fixture is a team tie. Line-ups are picked on the tie page before each match.</p>
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="font-semibold">Structure</h2>
-        <div className="space-y-2">
-          {STRUCTURES.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => setStructure(s.key)}
-              className={`block w-full rounded-xl border p-3 text-left ${structure === s.key ? "border-2 border-foreground" : "border-border bg-surface"}`}
-            >
-              <span className="font-semibold">{s.title}</span>
-              <span className="mt-0.5 block text-sm text-muted">{s.text}</span>
-            </button>
-          ))}
-        </div>
-        {structure !== "knockout" && (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={legs === 2} onChange={(e) => setLegs(e.target.checked ? 2 : 1)} />
-            Play each opponent twice (home and away)
-          </label>
-        )}
-        {structure !== "league" && (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={thirdPlace} onChange={(e) => setThirdPlace(e.target.checked)} />
-            Add a third-place match between the semi-final losers
-          </label>
-        )}
-        <p className="text-xs text-muted">You can still change the structure until fixtures are generated.</p>
-      </section>
-
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Match rules</h2>
-        <p className="text-xs text-muted">Used for every match. Scorers can still adjust a match before or during play.</p>
-        <RulesFields key={`${sport}-${rulesKey}`} rules={rules} setLabel={config.setLabel} onChange={setRules} sport={sport} />
-      </section>
-
-      {structure !== "knockout" && (
-        <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-          <h2 className="font-semibold">Points table</h2>
-          <div className="space-y-2">
-            {rankingChoices(sport).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setRanking(key)}
-                className={`block w-full rounded-xl border p-3 text-left ${ranking === key ? "border-2 border-foreground" : "border-border bg-surface"}`}
-              >
-                <span className="font-semibold">{RANKINGS[key].label}</span>
-                <span className="mt-0.5 block text-xs text-muted">{RANKINGS[key].points}</span>
-                <span className="mt-0.5 block text-xs text-muted">{RANKINGS[key].order}</span>
-              </button>
-            ))}
-          </div>
-          {ranking === "custom" && (
-            <div className="grid grid-cols-2 gap-3">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium">Points for a win</span>
-                <input type="number" inputMode="numeric" value={win} onChange={(e) => setWin(e.target.value)} />
+            {structure !== "league" && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={thirdPlace} onChange={(e) => setThirdPlace(e.target.checked)} />
+                Third-place match between the semi-final losers
               </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium">Points for a loss</span>
-                <input type="number" inputMode="numeric" value={loss} onChange={(e) => setLoss(e.target.value)} />
-              </label>
-            </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {step === 4 && (
+        <>
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold">Match rules</h2>
+            <RulesFields key={`${sport}-${rulesKey}`} rules={rules} setLabel={config.setLabel} onChange={setRules} sport={sport} />
+          </section>
+          {structure !== "knockout" && (
+            <section className="space-y-2">
+              <h2 className="text-sm font-semibold">Points table</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {rankingChoices(sport).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={ranking === key}
+                    onClick={() => setRanking(key)}
+                    className={`rounded-xl border px-3 py-2.5 text-left text-sm font-semibold ${ranking === key ? "opt-on" : "border-border bg-surface"}`}
+                  >
+                    {RANKINGS[key].label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted">
+                {RANKINGS[ranking].points} {RANKINGS[ranking].order}.
+              </p>
+              {ranking === "custom" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium">Points for a win</span>
+                    <input type="number" inputMode="numeric" value={win} onChange={(e) => setWin(e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium">Points for a loss</span>
+                    <input type="number" inputMode="numeric" value={loss} onChange={(e) => setLoss(e.target.value)} />
+                  </label>
+                </div>
+              )}
+            </section>
           )}
-        </section>
+          <p className="rounded-xl bg-[var(--tint)] px-4 py-3 text-sm">
+            <span className="font-semibold">{name || "Your tournament"}: </span>
+            {summary.join(" · ")}
+          </p>
+        </>
       )}
 
       {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-      <button type="submit" className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
-        Create tournament
-      </button>
+      <ActionBar>
+        {step < 4 ? (
+          <button type="submit" className="btn-grad w-full rounded-xl py-3 font-semibold">
+            Next
+          </button>
+        ) : (
+          <button type="submit" className="btn-grad w-full rounded-xl py-3 font-semibold">
+            Create tournament
+          </button>
+        )}
+      </ActionBar>
     </form>
   );
 }

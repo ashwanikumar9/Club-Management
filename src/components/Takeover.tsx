@@ -105,7 +105,7 @@ export function TakeoverCard({ match, user }: { match: Match; user: string }) {
         <button
           type="button"
           onClick={() => run((m) => requestTakeover(m, user))}
-          className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background"
+          className="btn-grad mt-3 w-full rounded-xl py-3 font-bold"
         >
           Take over now
         </button>
@@ -154,7 +154,7 @@ export function TakeoverCard({ match, user }: { match: Match; user: string }) {
           <button
             type="button"
             onClick={() => run((m) => requestTakeover(m, user))}
-            className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background"
+            className="btn-grad mt-3 w-full rounded-xl py-3 font-bold"
           >
             {match.activeScorer ? (declined ? "Request again" : "Request to take over") : "Take over scoring"}
           </button>

@@ -171,7 +171,7 @@ function Scorer({
             <p className="mt-1 text-muted">Scores can no longer be changed by scorers. Ask the organiser for corrections.</p>
           )}
           {organiser && (
-            <Link href={`/matches/${match.id}/edit`} className="mt-3 inline-block rounded-lg bg-foreground px-4 py-2 font-semibold text-background">
+            <Link href={`/matches/${match.id}/edit`} className="btn-grad mt-3 inline-block rounded-lg px-4 py-2 font-semibold">
               Edit points
             </Link>
           )}
@@ -342,7 +342,7 @@ function Scorer({
               ))}
             </div>
           )}
-          <button type="button" onClick={() => setPending(null)} className="mt-4 w-full rounded-xl bg-foreground py-3 font-semibold text-background">
+          <button type="button" onClick={() => setPending(null)} className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold">
             Skip · keep as plain point
           </button>
           <p className="mt-2 text-center text-xs text-muted">The point is already counted. This only adds detail for commentary.</p>
@@ -449,7 +449,7 @@ function RulesPanel({ match, state, by }: { match: Match; state: MatchState; by:
             <button type="button" onClick={() => setDraft(null)} className="rounded-xl border border-border py-3 font-medium">
               Cancel
             </button>
-            <button type="button" onClick={save} className="rounded-xl bg-foreground py-3 font-bold text-background">
+            <button type="button" onClick={save} className="btn-grad rounded-xl py-3 font-bold">
               Save rules
             </button>
           </div>
@@ -487,7 +487,7 @@ function SettingsBar({ match, by }: { match: Match; by: string }) {
         type="button"
         aria-pressed={match.settings.askHow}
         onClick={() => toggle("askHow")}
-        className={`rounded-full border px-3 py-1 ${match.settings.askHow ? "border-foreground font-semibold" : "border-border text-muted"}`}
+        className={`rounded-full border px-3 py-1 ${match.settings.askHow ? "opt-on font-semibold" : "border-border text-muted"}`}
       >
         How {match.settings.askHow ? "on" : "off"}
       </button>
@@ -496,7 +496,7 @@ function SettingsBar({ match, by }: { match: Match; by: string }) {
           type="button"
           aria-pressed={match.settings.askWho}
           onClick={() => toggle("askWho")}
-          className={`rounded-full border px-3 py-1 ${match.settings.askWho ? "border-foreground font-semibold" : "border-border text-muted"}`}
+          className={`rounded-full border px-3 py-1 ${match.settings.askWho ? "opt-on font-semibold" : "border-border text-muted"}`}
         >
           Who {match.settings.askWho ? "on" : "off"}
         </button>
@@ -529,7 +529,7 @@ function DecidingToss({
       key={value}
       type="button"
       onClick={() => set(value)}
-      className={`truncate rounded-lg border px-2 py-2 text-sm ${current === value ? "border-2 border-foreground font-semibold" : "border-border bg-surface"}`}
+      className={`truncate rounded-lg border px-2 py-2 text-sm ${current === value ? "opt-on font-semibold" : "border-border bg-surface"}`}
     >
       {match.sides[value].name}
     </button>

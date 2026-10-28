@@ -7,7 +7,7 @@ import { demoMatches } from "@/lib/demo";
 import { eventStatus, knownCities, nearYou, yourEvents, type EventItem, type EventStatus } from "@/lib/home";
 import { myCards } from "@/lib/players/cards";
 import { hasScoringAccess } from "@/lib/rally/mutations";
-import { FORMAT_LABELS, SPORTS } from "@/lib/rally/sports";
+import { FORMAT_LABELS, SPORT_ICON, SPORTS } from "@/lib/rally/sports";
 import type { Match } from "@/lib/rally/types";
 import { readCity, readRecent, saveCity } from "@/lib/recent";
 import { tieState } from "@/lib/tie/tie";
@@ -63,9 +63,16 @@ function EventCard({ item, tournaments, data }: { item: EventItem; tournaments: 
     const m = item.meet;
     const sports = [...new Set(m.events.map((e) => SPORTS[e.sport].name))].join(", ");
     return (
-      <Link href={`/meets/${m.id}`} className="block rounded-2xl border border-border bg-surface p-4">
+      <Link href={`/meets/${m.id}`} className="block h-full rounded-2xl border border-border bg-surface p-4">
+        <span className="mb-2 flex gap-1" aria-hidden>
+          {[...new Set(m.events.map((e) => e.sport))].map((sp) => (
+            <span key={sp} className={`sport-${sp} sport-tile grid h-8 w-8 place-items-center rounded-lg text-base`}>
+              {SPORT_ICON[sp]}
+            </span>
+          ))}
+        </span>
         <p className="flex justify-between gap-2 text-xs text-muted">
-          <span className="truncate">🏅 Sports meet · {sports}</span>
+          <span className="truncate">Sports meet · {sports}</span>
           <span className={status === "live" ? "font-semibold text-live" : ""}>{STATUS_TEXT[status]}</span>
         </p>
         <p className="mt-0.5 font-semibold">{m.name}</p>
@@ -78,10 +85,13 @@ function EventCard({ item, tournaments, data }: { item: EventItem; tournaments: 
   const t = item.t;
   const winner = champion(t, data);
   return (
-    <Link href={`/tournaments/${t.id}`} className="block rounded-2xl border border-border bg-surface p-4">
+    <Link href={`/tournaments/${t.id}`} className="block h-full rounded-2xl border border-border bg-surface p-4">
+      <span className={`sport-${t.sport} sport-tile mb-2 grid h-8 w-8 place-items-center rounded-lg text-base`} aria-hidden>
+        {SPORT_ICON[t.sport]}
+      </span>
       <p className="flex justify-between gap-2 text-xs text-muted">
         <span className="truncate">
-          🏆 {SPORTS[t.sport].name} · {FORMAT_LABELS[t.format]} · {t.entries.length} entries
+          {SPORTS[t.sport].name} · {FORMAT_LABELS[t.format]} · {t.entries.length} entries
         </span>
         <span className={status === "live" ? "font-semibold text-live" : ""}>{STATUS_TEXT[status]}</span>
       </p>
@@ -154,7 +164,7 @@ function CityPicker({ city, setCity, cities }: { city: string; setCity: (c: stri
           <option key={c} value={c} />
         ))}
       </datalist>
-      <button type="submit" className="shrink-0 rounded-lg bg-foreground px-4 text-sm font-semibold text-background">
+      <button type="submit" className="btn-grad shrink-0 rounded-lg px-4 text-sm font-semibold">
         Save
       </button>
     </form>
@@ -194,11 +204,11 @@ export function MatchList() {
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-2">
         {[
-          ["/matches/new", "🏸", "Match"],
-          ["/tournaments/new", "🏆", "Tournament"],
-          ["/meets/new", "🏅", "Sports meet"],
-        ].map(([href, icon, label]) => (
-          <Link key={href} href={href} className="rounded-2xl border border-border bg-surface px-2 py-3 text-center">
+          ["/matches/new", "🏸", "Match", "badminton"],
+          ["/tournaments/new", "🏆", "Tournament", "table_tennis"],
+          ["/meets/new", "🏅", "Sports meet", "volleyball"],
+        ].map(([href, icon, label, tone]) => (
+          <Link key={href} href={href} className={`sport-${tone} sport-tile rounded-2xl px-2 py-3 text-center shadow-sm active:scale-[0.98]`}>
             <span className="block text-2xl" aria-hidden>
               {icon}
             </span>
@@ -220,8 +230,8 @@ export function MatchList() {
       )}
 
       {mine.length > 0 && (
-        <Section title="Your events">
-          <ul className="space-y-3">
+        <Section title={`Your events (${mine.length})`}>
+          <ul className="rail">
             {mine.map((i) => (
               <li key={i.id}>
                 <EventCard item={i} tournaments={tournaments} data={data} />
@@ -240,7 +250,7 @@ export function MatchList() {
         ) : near.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted">No upcoming events in {city} yet.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="rail">
             {near.map((i) => (
               <li key={i.id}>
                 <EventCard item={i} tournaments={tournaments} data={data} />

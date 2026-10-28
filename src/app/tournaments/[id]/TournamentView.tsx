@@ -147,7 +147,7 @@ function View({ t, data }: { t: Tournament; data: Data }) {
             key={x.key}
             type="button"
             onClick={() => setTab(x.key)}
-            className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 ${active === x.key ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}
+            className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 ${active === x.key ? "opt-on font-semibold" : "text-muted"}`}
           >
             {x.label}
           </button>
@@ -222,7 +222,7 @@ function PhaseBar({
             });
             if (!err) onAdvanced(t.structure === "knockout" ? "knockout" : "groups");
           }}
-          className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background"
+          className="btn-grad mt-3 w-full rounded-xl py-3 font-bold"
         >
           Generate fixtures
         </button>
@@ -249,7 +249,7 @@ function PhaseBar({
                 });
                 if (!err) onAdvanced("knockout");
               }}
-              className="mt-3 w-full rounded-xl bg-foreground py-3 font-bold text-background disabled:opacity-40"
+              className="btn-grad mt-3 w-full rounded-xl py-3 font-bold disabled:opacity-40"
             >
               Start knockout with top {t.qualifiersPerGroup} of each group
             </button>
@@ -297,7 +297,7 @@ function EntriesTab({
               key={s.key}
               type="button"
               onClick={() => edit((x) => setStructure(x, user, s.key))}
-              className={`whitespace-nowrap rounded-full border px-3 py-1 ${t.structure === s.key ? "border-foreground font-semibold" : "border-border text-muted"}`}
+              className={`whitespace-nowrap rounded-full border px-3 py-1 ${t.structure === s.key ? "opt-on font-semibold" : "border-border text-muted"}`}
             >
               {s.title}
             </button>
@@ -513,7 +513,7 @@ function AddEntryForm({ t, edit, user }: { t: Tournament; edit: (mutate: (x: Tou
           + Add player
         </button>
       )}
-      <button type="submit" className="w-full rounded-xl bg-foreground py-2.5 font-semibold text-background">
+      <button type="submit" className="btn-grad w-full rounded-xl py-2.5 font-semibold">
         Add {label}
       </button>
     </form>
@@ -734,7 +734,7 @@ function TableSettings({ t, edit, user }: { t: Tournament; edit: (mutate: (x: To
           key={key}
           type="button"
           onClick={() => choose(key)}
-          className={`block w-full rounded-xl border p-3 text-left ${current === key ? "border-2 border-foreground" : "border-border"}`}
+          className={`block w-full rounded-xl border p-3 text-left ${current === key ? "opt-on" : "border-border"}`}
         >
           <span className="font-semibold">{RANKINGS[key].label}</span>
           <span className="mt-0.5 block text-xs text-muted">{RANKINGS[key].points}</span>

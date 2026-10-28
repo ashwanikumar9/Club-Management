@@ -43,7 +43,7 @@ export function MyCard() {
                 If an organiser already made a card for you with this {identityKind(user) === "email" ? "email" : "number"}, it appears here
                 automatically. Otherwise create your own.
               </p>
-              <Link href="/players/new" className="inline-block rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background">
+              <Link href="/players/new" className="btn-grad inline-block rounded-lg px-4 py-2 text-sm font-semibold">
                 Create my card
               </Link>
             </>

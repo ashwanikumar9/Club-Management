@@ -14,6 +14,16 @@
   --accent: #0f7a4f;
   --danger: #c2262e;
   --live: #d92d20;
+  /* Brand gradient (selections, main buttons) and one gradient per sport. */
+  --brand: #059669;
+  --brand-2: #0284c7;
+  --badminton: #10b981;
+  --badminton-2: #0ea5e9;
+  --table_tennis: #f97316;
+  --table_tennis-2: #e11d48;
+  --volleyball: #eab308;
+  --volleyball-2: #2563eb;
+  --tint: #ecfdf5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,6 +41,9 @@
     --accent: #34b37c;
     --danger: #ef5a5f;
     --live: #f04438;
+    --brand: #10b981;
+    --brand-2: #0ea5e9;
+    --tint: #0f2a24;
   }
 }
 
@@ -74,4 +87,113 @@ textarea {
 
 input[type="checkbox"] {
   width: auto;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--brand);
+}
+
+/*
+ * Colour for choices and actions. These are plain (unlayered) rules, so they win over the Tailwind utilities
+ * on the same element: a selected option keeps its gradient even if it also has bg-surface.
+ */
+.btn-grad {
+  background-image: linear-gradient(135deg, var(--brand), var(--brand-2));
+  color: #fff;
+  box-shadow: 0 6px 16px -8px var(--brand-2);
+}
+.btn-grad:active {
+  transform: scale(0.98);
+}
+
+.opt-on {
+  background-image: linear-gradient(135deg, var(--brand), var(--brand-2));
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 6px 18px -10px var(--brand-2);
+}
+.opt-on .text-muted,
+.opt-on .text-accent {
+  color: rgb(255 255 255 / 0.85);
+}
+
+/* Sport tiles: the sport's own gradient. */
+.sport-tile {
+  background-image: linear-gradient(135deg, var(--sport-a), var(--sport-b));
+  color: #fff;
+  border-color: transparent;
+}
+.sport-badminton {
+  --sport-a: var(--badminton);
+  --sport-b: var(--badminton-2);
+}
+.sport-table_tennis {
+  --sport-a: var(--table_tennis);
+  --sport-b: var(--table_tennis-2);
+}
+.sport-volleyball {
+  --sport-a: var(--volleyball);
+  --sport-b: var(--volleyball-2);
+}
+/* An unselected sport tile is pale; selecting it fills the gradient. */
+.sport-soft {
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--sport-a) 14%, var(--surface)), color-mix(in srgb, var(--sport-b) 14%, var(--surface)));
+  border-color: color-mix(in srgb, var(--sport-a) 35%, var(--border));
+}
+
+.brand-text {
+  background-image: linear-gradient(135deg, var(--brand), var(--brand-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Sticky action bar at the bottom of forms, clear of the phone's home indicator. */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  margin-inline: -1rem;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+}
+
+/* Sideways-scrolling row of cards (home page). */
+.rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(80%, 18rem);
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  margin-inline: -1rem;
+  padding: 0 1rem 0.25rem;
+  scrollbar-width: none;
+}
+.rail > * {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-grad:active {
+    transform: none;
+  }
+}
+
+.sport-tile .text-muted {
+  color: rgb(255 255 255 / 0.88);
 }

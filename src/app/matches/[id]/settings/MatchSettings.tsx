@@ -42,7 +42,7 @@ function Editor({ match }: { match: Match }) {
         </div>
         <Link
           href={match.status === "closed" ? `/matches/${match.id}` : `/matches/${match.id}/score`}
-          className="shrink-0 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background"
+          className="btn-grad shrink-0 rounded-lg px-4 py-2 text-sm font-semibold"
         >
           Done
         </Link>

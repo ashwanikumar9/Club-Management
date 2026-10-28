@@ -4,13 +4,12 @@ import Link from "next/link";
 import { use, useEffect, useState, useSyncExternalStore } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
 import { Sheet } from "@/components/Sheet";
-import { SPORT_ICON } from "@/app/matches/new/NewMatchForm";
 import { IDENTITY_ICON, identityKind } from "@/lib/identity";
 import { addMeetEvent, canManageEvent, canManageMeet, formFor, managedEvents, removeMeetEvent, setEventAdmins, updateMeet as changeMeet } from "@/lib/meet/meet";
 import { approveRegistration, rejectRegistration } from "@/lib/meet/registration";
 import type { Meet, MeetEvent, Registration } from "@/lib/meet/types";
 import { MutationError } from "@/lib/rally/mutations";
-import { FORMAT_LABELS, SPORT_LIST } from "@/lib/rally/sports";
+import { FORMAT_LABELS, SPORT_LIST, SPORT_ICON } from "@/lib/rally/sports";
 import type { MatchFormat, SportKey } from "@/lib/rally/types";
 import { rememberVisit } from "@/lib/recent";
 import { champion, type Data } from "@/lib/tournament/engine";
@@ -89,7 +88,7 @@ function View({ meet, tournaments, data }: { meet: Meet; tournaments: Record<str
         {meet.registration.info && <p className="mt-2 whitespace-pre-wrap text-sm">{meet.registration.info}</p>}
         {meet.registration.open && (
           <>
-            <Link href={`/meets/${meet.id}/register`} className="mt-3 block rounded-xl bg-foreground py-3 text-center font-semibold text-background">
+            <Link href={`/meets/${meet.id}/register`} className="btn-grad mt-3 block rounded-xl py-3 text-center font-semibold">
               Register a team
             </Link>
             <ShareLink link={link} name={meet.name} />
@@ -149,7 +148,7 @@ function View({ meet, tournaments, data }: { meet: Meet; tournaments: Record<str
             return (
               <li key={e.id} className="rounded-2xl border border-border bg-surface">
                 <Link href={`/tournaments/${e.tournamentId}`} className="flex items-center gap-3 p-4">
-                  <span className="text-3xl" aria-hidden>
+                  <span className={`sport-${e.sport} sport-tile grid h-12 w-12 shrink-0 place-items-center rounded-xl text-2xl`} aria-hidden>
                     {SPORT_ICON[e.sport]}
                   </span>
                   <span className="min-w-0 flex-1">
@@ -348,7 +347,7 @@ function AddEvent({ meet, user, onClose, setError }: { meet: Meet; user: string;
                 setSport(s.key);
                 if (!s.formats.includes(format)) setFormat(s.formats[0]);
               }}
-              className={`rounded-xl border py-2 text-sm ${sport === s.key ? "border-foreground font-semibold" : "border-border"}`}
+              className={`rounded-xl border py-2 text-sm ${sport === s.key ? "opt-on font-semibold" : "border-border"}`}
             >
               {SPORT_ICON[s.key]} {s.name}
             </button>
@@ -356,7 +355,7 @@ function AddEvent({ meet, user, onClose, setError }: { meet: Meet; user: string;
         </div>
         <div className="flex gap-2">
           {formats.map((f) => (
-            <button key={f} type="button" onClick={() => setFormat(f)} className={`flex-1 rounded-lg border py-2 text-sm ${format === f ? "border-foreground font-semibold" : "border-border"}`}>
+            <button key={f} type="button" onClick={() => setFormat(f)} className={`flex-1 rounded-lg border py-2 text-sm ${format === f ? "opt-on font-semibold" : "border-border"}`}>
               {FORMAT_LABELS[f]}
             </button>
           ))}
@@ -372,7 +371,7 @@ function AddEvent({ meet, user, onClose, setError }: { meet: Meet; user: string;
             setError(err);
             if (!err) onClose();
           }}
-          className="w-full rounded-xl bg-foreground py-3 font-semibold text-background"
+          className="btn-grad w-full rounded-xl py-3 font-semibold"
         >
           Add event
         </button>
@@ -419,7 +418,7 @@ function AdminsSheet({ meet, event, user, onClose }: { meet: Meet; event: MeetEv
           setError(err);
           if (!err) onClose();
         }}
-        className="mt-4 w-full rounded-xl bg-foreground py-3 font-semibold text-background"
+        className="btn-grad mt-4 w-full rounded-xl py-3 font-semibold"
       >
         Save admins
       </button>
@@ -460,7 +459,7 @@ function SettingsSheet({ meet, user, onClose }: { meet: Meet; user: string; onCl
             setError(err);
             if (!err) onClose();
           }}
-          className="w-full rounded-xl bg-foreground py-3 font-semibold text-background"
+          className="btn-grad w-full rounded-xl py-3 font-semibold"
         >
           Save
         </button>

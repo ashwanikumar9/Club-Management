@@ -63,7 +63,7 @@ export function TossPanel({ match, by }: { match: Match; by: string }) {
     <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-semibold">Toss</h2>
-        <button type="button" onClick={flip} disabled={flipping} className="rounded-lg bg-foreground px-3 py-1.5 text-sm font-semibold text-background">
+        <button type="button" onClick={flip} disabled={flipping} className="btn-grad rounded-lg px-3 py-1.5 text-sm font-semibold">
           {flipping ? "Flipping…" : "🪙 Flip coin"}
         </button>
       </div>
@@ -96,7 +96,7 @@ export function TossPanel({ match, by }: { match: Match; by: string }) {
                   setChoice(c.key);
                   pick(winner, c.key);
                 }}
-                className={`rounded-lg border py-2 text-sm ${choice === c.key ? "border-foreground font-semibold" : "border-border text-muted"}`}
+                className={`rounded-lg border py-2 text-sm ${choice === c.key ? "opt-on font-semibold" : "border-border text-muted"}`}
               >
                 {c.label}
               </button>
@@ -135,7 +135,7 @@ export function TossPanel({ match, by }: { match: Match; by: string }) {
             setError(err);
             if (!err) setEditing(false);
           }}
-          className="flex-1 rounded-xl bg-foreground py-2.5 font-semibold text-background"
+          className="btn-grad flex-1 rounded-xl py-2.5 font-semibold"
         >
           Save toss
         </button>

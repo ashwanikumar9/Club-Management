@@ -1,8 +1,8 @@
 "use client";
 
+import { SPORT_ICON } from "@/lib/rally/sports";
 import Link from "next/link";
 import { use, useState } from "react";
-import { SPORT_ICON } from "@/app/matches/new/NewMatchForm";
 import { CardPicker } from "@/components/cards/CardPicker";
 import { identityKind } from "@/lib/identity";
 import { formFor } from "@/lib/meet/meet";
@@ -79,7 +79,7 @@ function Form({ meet }: { meet: Meet }) {
             they accept it.
           </p>
         </div>
-        <Link href={`/meets/${meet.id}`} className="block rounded-xl bg-foreground py-3 text-center font-semibold text-background">
+        <Link href={`/meets/${meet.id}`} className="btn-grad block rounded-xl py-3 text-center font-semibold">
           See the meet
         </Link>
       </div>
@@ -125,7 +125,7 @@ function Form({ meet }: { meet: Meet }) {
               type="button"
               aria-pressed={event?.id === e.id}
               onClick={() => choose(e)}
-              className={`flex items-center gap-3 rounded-xl border p-3 text-left ${event?.id === e.id ? "border-2 border-foreground" : "border-border bg-surface"}`}
+              className={`sport-${e.sport} flex items-center gap-3 rounded-xl border p-3 text-left ${event?.id === e.id ? "sport-tile shadow-md" : "sport-soft"}`}
             >
               <span className="text-2xl" aria-hidden>
                 {SPORT_ICON[e.sport]}
@@ -194,7 +194,7 @@ function Form({ meet }: { meet: Meet }) {
             <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Fee paid by UPI, ref 1234" />
           </label>
           {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-          <button type="button" disabled={busy} onClick={submit} className="w-full rounded-xl bg-foreground py-3 font-semibold text-background disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={submit} className="btn-grad w-full rounded-xl py-3 font-semibold disabled:opacity-50">
             Send registration request
           </button>
         </section>

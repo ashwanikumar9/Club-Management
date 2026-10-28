@@ -28,19 +28,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
         <header className="sticky top-0 z-20 border-b border-border bg-surface/95 backdrop-blur">
+          <div aria-hidden className="btn-grad h-0.5 w-full" />
           <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5">
             {/* The menu reads the current address, which is only known at request time. */}
             <Suspense fallback={<span className="grid h-9 w-9 place-items-center text-xl">☰</span>}>
               <SideNav />
             </Suspense>
-            <Link href="/" className="mr-auto truncate font-semibold tracking-tight">
-              Rally Scorer{" "}
+            <Link href="/" className="mr-auto flex min-w-0 items-center gap-2 font-bold tracking-tight">
+              <span aria-hidden className="btn-grad grid h-7 w-7 shrink-0 place-items-center rounded-lg text-sm">
+                ◉
+              </span>
+              <span className="brand-text truncate">Rally Scorer</span>
               {DATABASE ? (
-                <span className="ml-1 rounded bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent" title="Connected to the database">
+                <span className="ml-1 shrink-0 rounded bg-accent/15 px-1.5 py-0.5 text-xs font-medium text-accent" title="Connected to the database">
                   ● live
                 </span>
               ) : (
-                <span className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-normal text-muted" title="No database: data stays in this browser">
+                <span className="ml-1 shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-xs font-normal text-muted" title="No database: data stays in this browser">
                   prototype
                 </span>
               )}

@@ -119,6 +119,8 @@ export const SPORTS: Record<SportKey, SportConfig> = {
   },
 };
 
+export const SPORT_ICON: Record<SportKey, string> = { badminton: "🏸", table_tennis: "🏓", volleyball: "🏐" };
+
 export const SPORT_LIST: SportConfig[] = [SPORTS.badminton, SPORTS.table_tennis, SPORTS.volleyball];
 
 export const FORMAT_LABELS: Record<MatchFormat, string> = {

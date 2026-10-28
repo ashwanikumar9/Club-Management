@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RulesFields } from "@/components/RulesFields";
+import { SportPicker } from "@/components/SportPicker";
 import { SystemPicker } from "@/components/SystemPicker";
+import { ActionBar, StepHeader } from "@/components/Wizard";
 import { CardPicker } from "@/components/cards/CardPicker";
 import { MutationError } from "@/lib/rally/mutations";
 import { SPORTS } from "@/lib/rally/sports";
@@ -45,6 +47,7 @@ export function TieForm() {
     B: { name: "", players: emptyRows(4) },
   });
   const [system, setSystem] = useState("");
+  const [step, setStep] = useState(1);
   const [matchCount, setMatchCount] = useState(5);
   const [mode, setMode] = useState<LineupMode>("at_start");
   const [lineups, setLineups] = useState<Lineup[]>(defaultLineups(5));
@@ -104,7 +107,9 @@ export function TieForm() {
             : undefined,
         organiser: user!,
       });
-      saveTie(date || time ? { ...tie, schedule: { date: date || undefined, time: time || undefined, court: venue.trim() || undefined } } : tie);
+      saveTie(
+        date || time ? { ...tie, schedule: { date: date || undefined, time: time || undefined, court: venue.trim() || undefined } } : tie,
+      );
       router.push(`/ties/${tie.id}`);
     } catch (e) {
       if (e instanceof MutationError) setError(e.message);
@@ -114,77 +119,96 @@ export function TieForm() {
 
   return (
     <form
-      className="space-y-6 pb-10"
+      className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        submit();
+        if (step === 3) submit();
+        else setStep(step + 1);
       }}
     >
-      <div>
-        <h1 className="text-xl font-bold">New team tie</h1>
-        <p className="text-sm text-muted">Two teams play several singles and doubles matches; the first team to win the majority wins.</p>
-      </div>
+      <StepHeader
+        step={step}
+        total={3}
+        title={["Team tie: sport and format", "The two teams", "Line-ups and rules"][step - 1]}
+        onBack={() => setStep(step - 1)}
+      />
 
-      <div className="grid grid-cols-2 gap-2">
-        {(["badminton", "table_tennis"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => {
-              setSport(s);
+      {step === 1 && (
+        <>
+          <p className="text-sm text-muted">Two teams play several singles and doubles matches; the first team to win the majority wins.</p>
+          <SportPicker
+            value={sport}
+            sports={["badminton", "table_tennis"]}
+            onChange={(s) => {
+              setSport(s as Tie["sport"]);
               setRules(SPORTS[s].rules);
               setSystem("");
             }}
-            className={`rounded-xl border px-2 py-3 text-sm font-semibold ${sport === s ? "border-foreground bg-foreground text-background" : "border-border bg-surface"}`}
-          >
-            {SPORTS[s].name}
-          </button>
-        ))}
-      </div>
+          />
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold">Format</h2>
+            <SystemPicker sport={sport} value={system} onChange={setSystem} />
+          </section>
+        </>
+      )}
 
-      <section className="grid gap-4 sm:grid-cols-2">
-        {(["A", "B"] as const).map((side) => (
-          <div key={side} className="space-y-2 rounded-2xl border border-border bg-surface p-4">
-            <div className={`text-sm font-bold ${side === "A" ? "text-side-a" : "text-side-b"}`}>Team {side}</div>
-            <input value={teams[side].name} onChange={(e) => updateTeam(side, { name: e.target.value })} placeholder="Team name" aria-label={`Team ${side} name`} />
-            <span className="block pt-1 text-sm font-medium">Players</span>
-            {teams[side].players.map((p, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  className="!w-16 shrink-0"
-                  value={p.jersey}
-                  onChange={(e) => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, jersey: e.target.value } : x)) })}
-                  placeholder="#"
-                  aria-label="Jersey number"
-                />
-                <input
-                  value={p.name}
-                  onChange={(e) => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })}
-                  placeholder={`Player ${i + 1}`}
-                  aria-label={`Team ${side} player ${i + 1}`}
-                />
-                <CardPicker
-                  name={p.name}
-                  cardId={p.cardId}
-                  sport={sport}
-                  onPick={(picked) => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, ...picked } : x)) })}
-                  onUnlink={() => updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, cardId: undefined } : x)) })}
-                />
-              </div>
-            ))}
-            <button type="button" onClick={() => updateTeam(side, { players: [...teams[side].players, { name: "", jersey: "" }] })} className="text-sm font-medium text-side-a">
-              + Add player
-            </button>
-          </div>
-        ))}
-      </section>
+      {step === 2 && (
+        <section className="grid gap-4 sm:grid-cols-2">
+          {(["A", "B"] as const).map((side) => (
+            <div key={side} className="space-y-2 rounded-2xl border border-border bg-surface p-4">
+              <div className={`text-sm font-bold ${side === "A" ? "text-side-a" : "text-side-b"}`}>Team {side}</div>
+              <input
+                value={teams[side].name}
+                onChange={(e) => updateTeam(side, { name: e.target.value })}
+                placeholder="Team name"
+                aria-label={`Team ${side} name`}
+              />
+              <span className="block pt-1 text-sm font-medium">Players</span>
+              {teams[side].players.map((p, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    className="!w-16 shrink-0"
+                    value={p.jersey}
+                    onChange={(e) =>
+                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, jersey: e.target.value } : x)) })
+                    }
+                    placeholder="#"
+                    aria-label="Jersey number"
+                  />
+                  <input
+                    value={p.name}
+                    onChange={(e) =>
+                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })
+                    }
+                    placeholder={`Player ${i + 1}`}
+                    aria-label={`Team ${side} player ${i + 1}`}
+                  />
+                  <CardPicker
+                    name={p.name}
+                    cardId={p.cardId}
+                    sport={sport}
+                    onPick={(picked) =>
+                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, ...picked } : x)) })
+                    }
+                    onUnlink={() =>
+                      updateTeam(side, { players: teams[side].players.map((x, j) => (j === i ? { ...x, cardId: undefined } : x)) })
+                    }
+                  />
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => updateTeam(side, { players: [...teams[side].players, { name: "", jersey: "" }] })}
+                className="text-sm font-medium text-side-a"
+              >
+                + Add player
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
 
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Format</h2>
-        <SystemPicker sport={sport} value={system} onChange={setSystem} />
-      </section>
-
-      {!system && (
+      {step === 3 && !system && (
         <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
           <label className="block">
             <span className="mb-1 block text-sm font-medium">Number of matches</span>
@@ -209,7 +233,7 @@ export function TieForm() {
                   key={key}
                   type="button"
                   onClick={() => setMode(key)}
-                  className={`rounded-lg border py-2 text-sm ${mode === key ? "border-foreground font-semibold" : "border-border text-muted"}`}
+                  className={`rounded-lg border py-2 text-sm ${mode === key ? "opt-on font-semibold" : "border-border text-muted"}`}
                 >
                   {label}
                 </button>
@@ -231,7 +255,9 @@ export function TieForm() {
                     className="!w-auto text-sm"
                     value={l.format}
                     onChange={(e) =>
-                      setLineups((prev) => prev.map((x, i) => (i === index ? { format: e.target.value as Lineup["format"], A: [], B: [] } : x)))
+                      setLineups((prev) =>
+                        prev.map((x, i) => (i === index ? { format: e.target.value as Lineup["format"], A: [], B: [] } : x)),
+                      )
                     }
                     aria-label={`Match ${index + 1} format`}
                   >
@@ -266,22 +292,31 @@ export function TieForm() {
         </section>
       )}
 
-      <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-semibold">Details</h2>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (optional), e.g. Inter-College Final" aria-label="Title" />
-        <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Venue / court" aria-label="Venue" />
-        <div className="grid grid-cols-2 gap-3">
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Start time" />
-        </div>
-        <h3 className="pt-2 text-sm font-semibold">Match rules</h3>
-        <RulesFields key={sport} rules={rules} setLabel={SPORTS[sport].setLabel} onChange={setRules} sport={sport} />
-      </section>
+      {step === 3 && (
+        <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+          <h2 className="font-semibold">Details</h2>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title (optional), e.g. Inter-College Final"
+            aria-label="Title"
+          />
+          <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Venue / court" aria-label="Venue" />
+          <div className="grid grid-cols-2 gap-3">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Start time" />
+          </div>
+          <h3 className="pt-2 text-sm font-semibold">Match rules</h3>
+          <RulesFields key={sport} rules={rules} setLabel={SPORTS[sport].setLabel} onChange={setRules} sport={sport} />
+        </section>
+      )}
 
       {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-      <button type="submit" className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
-        Create team tie
-      </button>
+      <ActionBar>
+        <button type="submit" className="btn-grad w-full rounded-xl py-3 font-semibold">
+          {step < 3 ? "Next" : "Create team tie"}
+        </button>
+      </ActionBar>
     </form>
   );
 }

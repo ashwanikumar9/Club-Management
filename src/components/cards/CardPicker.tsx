@@ -158,7 +158,7 @@ function PickerSheet({
             <button type="button" onClick={() => setCreating(false)} className="rounded-xl border border-border py-2.5 text-sm">
               Back
             </button>
-            <button type="button" onClick={create} className="rounded-xl bg-foreground py-2.5 text-sm font-semibold text-background">
+            <button type="button" onClick={create} className="btn-grad rounded-xl py-2.5 text-sm font-semibold">
               Create & pick
             </button>
           </div>

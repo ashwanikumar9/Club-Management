@@ -115,7 +115,7 @@ export function NewPlayerForm() {
                 type="button"
                 aria-pressed={on}
                 onClick={() => setSports(on ? sports.filter((x) => x !== s.key) : [...sports, s.key])}
-                className={`rounded-full border px-3 py-1.5 text-sm ${on ? "border-foreground font-semibold" : "border-border text-muted"}`}
+                className={`rounded-full border px-3 py-1.5 text-sm ${on ? "opt-on font-semibold" : "border-border text-muted"}`}
               >
                 {s.name}
               </button>
@@ -139,7 +139,7 @@ export function NewPlayerForm() {
       </section>
 
       {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-      <button type="submit" className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
+      <button type="submit" className="btn-grad w-full rounded-xl py-3 font-semibold">
         Create card
       </button>
     </form>

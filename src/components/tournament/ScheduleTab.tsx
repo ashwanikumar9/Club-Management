@@ -164,7 +164,7 @@ function ScheduleTools({ t, user, setError }: { t: Tournament; user: string; set
             setError(err);
             if (!err) setDone("Schedule created.");
           }}
-          className="mt-3 w-full rounded-xl bg-foreground py-2.5 font-semibold text-background"
+          className="btn-grad mt-3 w-full rounded-xl py-2.5 font-semibold"
         >
           Auto-schedule
         </button>
@@ -246,7 +246,7 @@ function EditSchedule({ t, fixture, user, onClose }: { t: Tournament; fixture: F
         <button type="button" onClick={() => save(true)} className="rounded-xl border border-border py-3 font-medium">
           Clear time
         </button>
-        <button type="button" onClick={() => save()} className="rounded-xl bg-foreground py-3 font-bold text-background">
+        <button type="button" onClick={() => save()} className="btn-grad rounded-xl py-3 font-bold">
           Save
         </button>
       </div>

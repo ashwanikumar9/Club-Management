@@ -221,7 +221,7 @@ function SlotCard({
         <div className="mt-2 flex gap-2">
           {slot.players ? (
             <>
-              <button type="button" onClick={onStart} className="flex-1 rounded-lg bg-foreground py-2 text-sm font-semibold text-background">
+              <button type="button" onClick={onStart} className="btn-grad flex-1 rounded-lg py-2 text-sm font-semibold">
                 Start match
               </button>
               {!slot.letters && (
@@ -231,7 +231,7 @@ function SlotCard({
               )}
             </>
           ) : (
-            <button type="button" onClick={onLineup} className="flex-1 rounded-lg bg-foreground py-2 text-sm font-semibold text-background">
+            <button type="button" onClick={onLineup} className="btn-grad flex-1 rounded-lg py-2 text-sm font-semibold">
               Pick line-up & start
             </button>
           )}
@@ -286,7 +286,7 @@ function LineupSheet({
                 setFormat(f);
                 setPicks((prev) => ({ A: prev.A.slice(0, f === "singles" ? 1 : 2), B: prev.B.slice(0, f === "singles" ? 1 : 2) }));
               }}
-              className={`rounded-lg border py-2 text-sm ${format === f ? "border-foreground font-semibold" : "border-border text-muted"}`}
+              className={`rounded-lg border py-2 text-sm ${format === f ? "opt-on font-semibold" : "border-border text-muted"}`}
             >
               {f === "singles" ? "Singles" : "Doubles"}
             </button>
@@ -322,7 +322,7 @@ function LineupSheet({
         <button type="button" disabled={!complete} onClick={() => save(false)} className="rounded-xl border border-border py-3 font-medium disabled:opacity-40">
           Save line-up
         </button>
-        <button type="button" disabled={!complete} onClick={() => save(true)} className="rounded-xl bg-foreground py-3 font-bold text-background disabled:opacity-40">
+        <button type="button" disabled={!complete} onClick={() => save(true)} className="btn-grad rounded-xl py-3 font-bold disabled:opacity-40">
           Save & start
         </button>
       </div>
@@ -397,7 +397,7 @@ function LettersPanel({
                       setError(err);
                       if (!err) setEditing(null);
                     }}
-                    className="rounded-lg bg-foreground py-2 text-sm font-semibold text-background"
+                    className="btn-grad rounded-lg py-2 text-sm font-semibold"
                   >
                     Save letters
                   </button>

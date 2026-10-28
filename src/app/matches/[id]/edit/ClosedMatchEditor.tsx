@@ -54,7 +54,7 @@ function Editor({ match, state, by }: { match: Match; state: MatchState; by: str
           <p className="truncate text-sm text-muted">{matchSubtitle(match)}</p>
           <h1 className="text-xl font-bold">Correct points</h1>
         </div>
-        <Link href={`/matches/${match.id}`} className="shrink-0 rounded-lg bg-foreground px-4 py-2 text-sm font-semibold text-background">
+        <Link href={`/matches/${match.id}`} className="btn-grad shrink-0 rounded-lg px-4 py-2 text-sm font-semibold">
           Done
         </Link>
       </div>

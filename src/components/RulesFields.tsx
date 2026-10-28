@@ -44,25 +44,27 @@ export function RulesFields({
     <div className="space-y-3">
       {sport && (
         <div className="space-y-2">
-          {RULE_PRESETS[sport].map((p) => {
-            const on = preset?.key === p.key;
-            return (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => onChange({ ...p.rules })}
-                className={`block w-full rounded-xl border p-3 text-left ${on ? "border-2 border-foreground" : "border-border bg-surface"}`}
-              >
-                <span className="flex items-center gap-2 font-semibold">
+          <div className="grid grid-cols-2 gap-2">
+            {RULE_PRESETS[sport].map((p) => {
+              const on = preset?.key === p.key;
+              return (
+                <button
+                  key={p.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onChange({ ...p.rules })}
+                  className={`relative rounded-xl border px-3 py-2.5 text-left text-sm font-semibold leading-snug ${on ? "opt-on" : "border-border bg-surface"}`}
+                >
                   {p.label}
-                  {p.official && <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">Official</span>}
-                </span>
-                <span className="mt-0.5 block text-xs text-muted">{p.hint}</span>
-              </button>
-            );
-          })}
-          {!preset && <p className="text-xs text-muted">Custom rules: {describeRules(rules, setLabel)}</p>}
-          <button type="button" onClick={() => setCustom((c) => !c)} className="text-sm font-medium underline">
+                  {p.official && (
+                    <span className={`mt-1 block text-[10px] font-semibold uppercase tracking-wide ${on ? "text-white/85" : "text-accent"}`}>★ Official</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted">{preset ? preset.hint : `Custom: ${describeRules(rules, setLabel)}`}</p>
+          <button type="button" onClick={() => setCustom((c) => !c)} className="text-sm font-medium text-side-a">
             {custom ? "Hide the numbers" : "Customise the numbers"}
           </button>
         </div>

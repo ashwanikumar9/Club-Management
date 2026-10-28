@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { IdentityForm } from "@/components/IdentityForm";
 import { RulesFields } from "@/components/RulesFields";
+import { ActionBar, StepHeader } from "@/components/Wizard";
 import { CardPicker } from "@/components/cards/CardPicker";
 import { IDENTITY_ICON, identityKind } from "@/lib/identity";
 import { createMatch } from "@/lib/rally/mutations";
 import { validateRules } from "@/lib/rally/rules";
 import { sportFormats } from "@/lib/tournament/mutations";
-import { FORMAT_LABELS, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
+import { FORMAT_LABELS, SPORT_ICON, SPORT_LIST, SPORTS } from "@/lib/rally/sports";
 import type { MatchFormat, RallyRules, SideKey, SportKey } from "@/lib/rally/types";
 import { saveMatch, useUser } from "@/lib/store";
 
@@ -23,8 +24,6 @@ interface SideForm {
   name: string;
   players: PlayerRow[];
 }
-
-export const SPORT_ICON: Record<SportKey, string> = { badminton: "🏸", table_tennis: "🏓", volleyball: "🏐" };
 
 const playerCount: Record<MatchFormat, number> = { singles: 1, doubles: 2, team: 6 };
 
@@ -129,28 +128,18 @@ export function NewMatchForm() {
 
   return (
     <form
-      className="space-y-6 pb-10"
+      className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
         if (step === 3) submit();
       }}
     >
-      <div className="flex items-center gap-3">
-        {step > 1 && (
-          <button
-            type="button"
-            onClick={() => setStep((step - 1) as 1 | 2)}
-            aria-label="Back"
-            className="grid h-9 w-9 place-items-center rounded-lg border border-border"
-          >
-            ←
-          </button>
-        )}
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">Step {step} of 3</p>
-          <h1 className="text-xl font-bold">{step === 1 ? "Which sport?" : step === 2 ? `${config.name} match` : "Players"}</h1>
-        </div>
-      </div>
+      <StepHeader
+        step={step}
+        total={3}
+        title={step === 1 ? "Which sport?" : step === 2 ? `${config.name} match` : "Players"}
+        onBack={() => setStep((step - 1) as 1 | 2)}
+      />
 
       {step === 1 && (
         <section className="grid gap-3">
@@ -162,7 +151,7 @@ export function NewMatchForm() {
                 if (s.key !== sport) chooseSport(s.key);
                 setStep(2);
               }}
-              className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 text-left active:scale-[0.99]"
+              className={`sport-${s.key} sport-tile flex items-center gap-4 rounded-2xl p-4 text-left shadow-sm active:scale-[0.99]`}
             >
               <span className="text-4xl" aria-hidden>
                 {SPORT_ICON[s.key]}
@@ -187,7 +176,7 @@ export function NewMatchForm() {
                   // Badminton / table tennis team events are ties of several matches.
                   onClick={() => (f === "team" && sport !== "volleyball" ? router.push("/ties/new") : chooseFormat(f))}
                   className={`flex-1 rounded-lg border py-2 text-sm ${
-                    format === f ? "border-foreground font-semibold" : "border-border bg-surface text-muted"
+                    format === f ? "opt-on font-semibold" : "border-border bg-surface text-muted"
                   }`}
                 >
                   {FORMAT_LABELS[f]}
@@ -201,17 +190,19 @@ export function NewMatchForm() {
             <RulesFields key={sport} rules={rules} setLabel={config.setLabel} onChange={setRules} sport={sport} />
           </div>
           {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
-          <button
-            type="button"
-            onClick={() => {
-              const invalid = validateRules(rules);
-              setError(invalid);
-              if (!invalid) setStep(3);
-            }}
-            className="w-full rounded-xl bg-foreground py-3 font-semibold text-background"
-          >
-            Next: players
-          </button>
+          <ActionBar>
+            <button
+              type="button"
+              onClick={() => {
+                const invalid = validateRules(rules);
+                setError(invalid);
+                if (!invalid) setStep(3);
+              }}
+              className="btn-grad w-full rounded-xl py-3 font-semibold"
+            >
+              Next: players
+            </button>
+          </ActionBar>
         </section>
       )}
 
@@ -354,9 +345,11 @@ export function NewMatchForm() {
 
           {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 
-          <button type="submit" className="w-full rounded-xl bg-foreground py-3 font-semibold text-background">
-            Create match & start scoring
-          </button>
+          <ActionBar>
+            <button type="submit" className="btn-grad w-full rounded-xl py-3 font-semibold">
+              Create match & start scoring
+            </button>
+          </ActionBar>
         </>
       )}
     </form>

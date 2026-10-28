@@ -173,7 +173,7 @@ export function AddMatch({
             setB("");
           }
         }}
-        className="mt-2 w-full rounded-lg bg-foreground py-2 text-sm font-semibold text-background"
+        className="btn-grad mt-2 w-full rounded-lg py-2 text-sm font-semibold"
       >
         Add match
       </button>
@@ -219,7 +219,7 @@ function AddStageSheet({ t, data, user, onClose }: { t: Tournament; data: Data; 
               key={k.key}
               type="button"
               onClick={() => setKind(k.key)}
-              className={`block w-full rounded-xl border p-3 text-left text-sm ${kind === k.key ? "border-2 border-foreground" : "border-border"}`}
+              className={`block w-full rounded-xl border p-3 text-left text-sm ${kind === k.key ? "opt-on" : "border-border"}`}
             >
               <span className="font-semibold">{k.title}</span>
               <span className="block text-muted">{k.text}</span>
@@ -281,7 +281,7 @@ function AddStageSheet({ t, data, user, onClose }: { t: Tournament; data: Data; 
             setError(err);
             if (!err) onClose();
           }}
-          className="w-full rounded-xl bg-foreground py-3 font-bold text-background"
+          className="btn-grad w-full rounded-xl py-3 font-bold"
         >
           Add round
         </button>
@@ -325,7 +325,7 @@ export function EditFixtureSheet({ t, data, fixture, user, onClose }: { t: Tourn
       </div>
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
       <div className="mt-4 grid gap-2">
-        <button type="button" onClick={() => run((x, d) => setFixtureSides(x, user, d, fixture.id, a, b))} className="rounded-xl bg-foreground py-3 font-bold text-background">
+        <button type="button" onClick={() => run((x, d) => setFixtureSides(x, user, d, fixture.id, a, b))} className="btn-grad rounded-xl py-3 font-bold">
           Save players
         </button>
         <div className="grid grid-cols-2 gap-2">
